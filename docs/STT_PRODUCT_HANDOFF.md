@@ -1953,3 +1953,48 @@ Caption accuracy through the P4 (6 November 2026, Claude, user-requested): `tool
 - AMI overlapped 54.7% → 72.3%.
 
 Deletions dominate. The device's rawText is not bit-identical to an offline host decode of its saved PCM (61/200 segments identical, 21% word difference): finals are streamed and mostly promoted from speculative drafts. The microphone-path investigation brief for the HardwareOne agent is `docs/STT_MIC_INVESTIGATION_PROMPT.md`. Not checked: live-talker WER, and how much of each clip's speech lies outside every device segment.
+
+HardwareOne raw-recorder bench (7 November 2026, Claude, user-requested): HardwareOne branch `claude/p4-sttraw-capture` (`b2b81031`) was built on the Mac mini and run on the test P4 (app-only, production restored and verified). A 110 s recording (0 dropped) replays through `stt_raw_replay` to exactly the device's 15 `TL boundary` lines. On that recording:
+- reference speech outside every segment is 25.6% at the production speech floor 45 and 10.1% at 36;
+- the capture is clean 16-bit PDM with no bit loss, but quiet;
+- the quiet room is dominated by energy below 200 Hz, with tones at 44, 120, 240 and 3131 Hz.
+
+This repository now has the A/B tooling for that bench:
+- `tools/sttraw_ab/make_playlist.py`: the 10.3 min `ab1` playlist on the Audiodrive, with quiet speech, AMI, noise and silence;
+- `tools/sttraw_ab/score.py`: aligns, replays the detector arms and decodes every segment with one host decoder, then reports WER, empty clips and false captions per arm;
+- `tests/test_sttraw_ab.py`.
+
+Run 1 is too small to decide anything (13 clips): lower floors recovered audio, but the total WER was unchanged (79.2%). Bench notes and the HardwareOne agent's brief are in the ignored `private/sttraw-bench/`. Not done: the full `ab1` recording, the high-pass builds, the noise-floor matrix, live talkers.
+
+P4 microphone path and automatic mode (8 November 2026, Claude, user-requested): this session took over the
+test P4 and the STT/mic work from the HardwareOne release session. Firmware work is on HardwareOne branch
+`claude/stt-1.0` (worktree `/Volumes/hw1build/stt-1.0`, on top of `claude/road-to-1.0`), uncommitted at the
+user's request; the full write-up with tables is that branch's `docs/STT_MIC_PATH_INVESTIGATION_20261107.md`
+sections 6-7. The recognition model and speaker algorithms are unchanged.
+- Fixed in the other agent's mic knobs: saved PDM gain/high-pass were ignored by STT after a reboot; the noise
+  percentile setting accepted values the segmenter rejects (every session would fail).
+- The warm-up "Cancelled" known issue is a PDM DMA overrun before the session's first read (bench recorder SD
+  open); the loss baseline is now taken just before the first read (40/40 fast cycles with `sttraw` armed).
+- 1.0 defaults: `sttdecisionpre 97` (self-calibrating pre-emphasis onset judge) and `sttautogain 1`: STT opens
+  the PDM mic with its own 120 Hz high-pass and a gain chosen from the last sessions' levels, changed only when
+  three speech sessions agree (`stt/stt_auto_gain.h`, RAM only). Wake word and recordings keep the saved mic
+  settings.
+- Board results (P4X-EYE, Mac mini speaker, one host decoder, replays exact to the device boundaries):
+  - ab1 at 1 ft, volume 70: old 72.0 / 72.2% WER, automatic 44.3 / 48.0%; quiet read speech missed 8/8 -> 0/8;
+    no false captions;
+  - bright-noise playlist (`tools/sttraw_ab/make_noise_playlist.py`, nb1): no captions on hiss or bright noise;
+    the judge adds fragments on recorded meeting-room babble (bystanders);
+  - close to the Mac at volume 85 the gain stepped x8 -> x5 by itself after three agreeing sessions with no
+    accuracy change (19.8-24.4% vs fixed x1 22.0%).
+- Also: P4 local STT now requires the SD card and the published 15x5 model (plain `p4x_eye` and the handheld
+  deployment build without it); a software `reboot` lost the C6 link (release session's
+  `claude/fix-c6-reboot`; second image under test).
+- Tooling added here: `tools/sttraw_ab/make_noise_playlist.py`, `tools/sttraw_ab/rescore.py`, and a scorer rule
+  that a phrase opening early in silence belongs to the speech it runs into (`tests/test_sttraw_ab.py`).
+- Not verified: live talkers; the nearest-step rounding on the device (host-tested); auto gain persisting across
+  reboots (it does not); wake word/recording behaviour (untouched by design); the `stt_continuous
+  --full-phrase` host test flakes under heavy machine load in both the base and this branch.
+- G2 glasses mic (same day): close up 30.3 / 30.7% WER (read speech 7.1%), at 1 ft 72.2 -> 69.0% with the judge
+  (quiet clips missed 13 -> 5 of 16), bright noise neutral. Each mic now has its own detector profile (onboard
+  `stt*`, glasses `sttg2*`), judge 97 on both by default. Scoring G2 needs `tools/sttraw_ab/score.py --align
+  envelope` (BLE drops ~0.5% of samples; the waveform fit fails); tested in `tests/test_sttraw_ab.py`.
