@@ -31,7 +31,11 @@ import serial
 ROOT = Path(__file__).resolve().parents[2]
 PHASE4 = ROOT / 'private/training-track/overlap-gate/phase4'
 BOARD = PHASE4 / 'board'
-MAC = '02:48:57:31:00:01'
+# The test board's MAC is private: HW1_BENCH_MAC, or the first line of the ignored
+# private/bench-board-mac.txt. Every esptool step checks it before reading or writing.
+_MAC_FILE = ROOT / 'private/bench-board-mac.txt'
+MAC = (os.environ.get('HW1_BENCH_MAC')
+       or (_MAC_FILE.read_text().split()[0] if _MAC_FILE.exists() else '02:48:57:31:00:01')).lower()
 PORT = '/dev/cu.usbmodem101'
 HEAPTW_LOCK = Path.home() / 'claude-heaptw/busy.lock'
 IDF_PY = Path.home() / '.espressif/python_env/idf5.5_py3.9_env/bin/python'
