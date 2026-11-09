@@ -6,6 +6,46 @@ experiments in new private output directories. Old checkpoints remain usable as
 initial weights; old resume files and unversioned caches are intentionally not
 accepted as reproducible runs.
 
+## Prepared on 9 November 2026
+
+The scratch AdamW baseline finished on 9 November at
+`/Volumes/Audiodrive/stt/work/scratch-tech-1e5` (`--weights scratch`, learning
+rate 1e-5): step 20314, 500.02 audio hours, final score 1.0014, kept
+checkpoint step 13297, score 0.9989. The switches below stayed off on that run. Each
+later run changes one thing, in a new output directory, and a gain counts only
+when the speaker-resampled interval on the WER difference stays off zero.
+The int8-during-training arm started at 16:16 on 9 November at
+`/Volumes/Audiodrive/stt/work/scratch-tech-rough` (`--rough-numbers on`, same
+scratch recipe otherwise). Its config identity is
+`76dfbcfedf811d7ce92d292bd043eb00707350dcdfc33e1ffbb5439df3a0ba30`. After it
+finishes: `--farther`, then `--tech-far-fraction` only if the farther run
+leaves ordinary speech intact, then one full NovoGrad run
+(`--optimizer novograd`, learning rate 1e-3, same recipe otherwise). The
+30 September 12-hour NovoGrad continuation started at score 0.279 and ended at
+0.279, so that bake-off kept AdamW; the full run was still requested and waits
+until those arms finish.
+
+`--weights scratch` starts the same QuartzNet untrained. `--init` still supplies
+the network shape and the feature front-end. Batch-norm statistics update,
+because a scratch run has none to freeze. Step 0 is evaluated before any update,
+then health, loss, and the error report continue for the whole run. The default,
+`--weights checkpoint`, still loads the checkpoint and keeps batch-norm frozen.
+
+- `--rough-numbers on` fake-quantizes each convolution weight and each post-ReLU
+  activation to signed int8 during training. Batch-norm stays in the graph. The
+  network shape and the int8 export are unchanged. Leave this off for a short
+  continuation.
+- `--farther on` raises room reverberation from about 45% of close clips and 15%
+  of already-far clips to about 90% and 70%, and draws the level from -57 to -47
+  dBFS instead of -40 to -12. The mix, the network and the tech clips stay as
+  they are. Do not combine this with `--tech-far-fraction`.
+- `--tech-far-fraction` is for a later run only. That fraction of tech-speech
+  clips is rendered far and quiet in the loader. The rest stay at the clean
+  stored level. `prepare_tech_speech.py` still writes clean clips at about -20
+  dBFS. Skip that run if the farther run makes ordinary speech worse.
+- A richer meeting language model, a wider beam, an int16 block, a bigger
+  network and two-speaker separation are not part of these runs.
+
 ## Pipeline coverage
 
 | Diagram steps | Diagnostic / correction |
@@ -16,7 +56,7 @@ accepted as reproducible runs.
 | 6: accumulation | Sum losses across microbatches, divide gradients by the actual total number of delivered items, then clip once and update. This deliberately changes the old equal-microbatch weighting. |
 | 6: resume | Model, optimizer, Python/NumPy/Torch CPU/CUDA/MPS RNG, exposure counters and consumed-batch cursor are saved. Item-local augmentation/SpecAugment and a fixed sampler seed decouple examples from worker/prefetch order. |
 | 6: schedule / rollback | Audio-based scheduling is the default; wall time only stops the run. `legacy-wall` explicitly selects the older schedule. Rollback loads the matching optimizer and weights from the selected evaluation snapshot, while keeping forward data exposure/schedule progress. |
-| 7: evaluation | Required-set failures are fatal. Every selected example has a stable store/raw-index ID, PCM hash, speaker, duration, reference, hypothesis, insertion/deletion/substitution counts and paired changes against the previous evaluation. |
+| 7: evaluation | Required-set failures are fatal. Every selected example has a stable store/raw-index ID, PCM hash, speaker, duration, reference, hypothesis, insertion/deletion/substitution counts and paired changes against the previous evaluation. `evaluate.py --compare` also prints those counts for read, quiet, distant and tech speech, and a speaker-resampled interval on the WER difference. A change counts only when that interval stays off zero. |
 | 7: additional objectives | `--diagnostic-sets` evaluates additional development stores without changing checkpoint selection. Empty references use phantom words/minute; WER is null. Reserved test stores are rejected for this option. |
 | 8: cache provenance | Cache keys include model/config/tokenizer, dataset index/filter/exclusion/audio content, evaluator code and library versions. Legacy benchmark and CER cache imports are rejected rather than relabeled as verified. |
 | 9–11: attribution | Float and frozen-int8 evaluation emit linked stage records; saved logits carry audio/model identity into LM decoding. A separate importer handles complete aligned device recordings. The comparator requires matching IDs, audio, references and model provenance. Missing stages are explicit. |
