@@ -120,7 +120,17 @@ def pipeline(rows, width=900, box_w=150, box_h=58, hgap=28, vgap=46):
     out.append('</svg>')
     return '\n'.join(out)
 
+
 # --- data (all measured in this project; see the notes under each chart) ---------------------------------
+# One scale for both word-error tests. 19% and 72% are different recordings, drawn the same way.
+revisions = hbars([
+    ('Close playlist, 1.1', 19.68, GREY, ''),
+    ('Close playlist, 1.8', 18.28, GREY, ''),
+    ('1 foot, before 3.0, run 1', 72.0, AMBER, ''),
+    ('1 foot, before 3.0, run 2', 72.2, AMBER, ''),
+    ('1 foot, version 3, run 1', 44.3, GREEN, ''),
+    ('1 foot, version 3, run 2', 48.0, GREEN, ''),
+], '%', label_w=290, note_w=16, vmax=100, fmt='{:.1f}')
 train_time = hbars([
     ('Before (500 h run)', 33.1, GREY, 'measured, Oct 7-8'),
     ('With trainer speedups', 9.7, GREEN, 'components measured'),
@@ -318,6 +328,10 @@ timeline = [
     ('Oct 11 (06:00-08:20)', 'LM probe: decode time is set by the speech, not by memory or load, and LM size changes memory, not speed. Tech vocabulary (9.2k terms) built; 1.8 = a 1.6 MB LM with the terms: same accuracy, 0.9 MB less PSRAM.'),
     ('Oct 11 (08:30-09:35)', '1.9: speaker labels on the P4 (91% of phrases right). 2.0: labelling moved to a background task; that exposed an ESP-IDF bug (a vector register not saved on task switches), fixed with the upstream patch.'),
     ('Oct 11 (10:15-11:00)', '1.6 MB LM installed on the card, speaker kernels trimmed, labelled transcript lines, diagnostics compiled out. Everything ported to the stt-speedups branch (builds, host tests pass).'),
+    ('Nov 2', '128-byte cache lines at 250 MHz were corrupting PSRAM (about 11% of starts, up to 31% of session ends). 64-byte lines keep 250 MHz: close time 1250 to 1360 ms, model time 0.272 to 0.299 ms per ms of audio, word errors and speaker labels unchanged. Soak: no firmware fault in 70 starts and 39 complete sessions.'),
+    ('Nov 3', 'x2f draft pacing deployed on its own. Speaker-label lag about 7.3 s to about 2.3 s, with no word-error cost on that check. On the later paired fixtures the label median was 1.7-2.8 s against 5.4-23.5 s, and six x2f captures had no watchdog where six production captures had 11. Final captions are not faster. The storage-prevention patch from the same week was held.'),
+    ('Nov 6', 'Caption check only, same decoder. The word loss was in the P4 microphone path, not the model: quiet speech was mostly never segmented. No firmware change yet.'),
+    ('Nov 7-8', '3.0 adds, for the onboard mic, its own 120 Hz high-pass, a gain from recent sessions, and a self-calibrating onset judge. Recognition model unchanged.'),
 ]
 VERSIONS = [
     ('1.1', 'Oct 10', 'deployed', 'The firmware on the P4 (gen2-25397). The model is rebuilt for every phrase.'),
@@ -330,6 +344,7 @@ VERSIONS = [
     ('1.8', 'Oct 11, 08:20', 'c12 + card LM', '1.6 MB language model with 9.2k tech terms (43k words) instead of 2.5 MB.'),
     ('1.9', 'Oct 11, 08:30', 'c13, first', 'Speaker labels ("Person N"), computed in the speech worker.'),
     ('2.0', 'Oct 11, 09:20-10:45', 'c13, final', 'Speaker labels in a background task, ESP-IDF fix, trimmed kernels, labelled transcript lines.'),
+    ('3.0', 'Nov 7-8', 'stt-1.0', 'Onboard microphone: its own 120 Hz high-pass, gain from recent sessions, and a self-calibrating onset judge.'),
 ]
 
 css = """
@@ -345,9 +360,11 @@ h3 { font-size: 15px; margin: 18px 0 4px; color: var(--muted); font-weight: 600;
 p, li { color: var(--fg); }
 .sub { color: var(--muted); margin: 0 0 18px; }
 .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin: 18px 0 6px; }
-.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
-.card .big { font-size: 24px; font-weight: 700; }
-.card .from { color: var(--muted); font-size: 13px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; }
+.card .k { font-size: 13px; font-weight: 600; line-height: 1.35; min-height: 2.7em; }
+.card .was { color: var(--muted); font-size: 13px; font-weight: 600; white-space: nowrap; margin-top: 8px; }
+.card .now { font-size: 22px; font-weight: 700; line-height: 1.15; letter-spacing: -0.02em; white-space: nowrap; margin: 1px 0 6px; }
+.card .note { color: var(--muted); font-size: 12px; line-height: 1.35; margin-top: auto; }
 svg text { fill: var(--fg); font-size: 13px; }
 svg text.note { fill: var(--muted); font-size: 12px; }
 svg text.val { font-weight: 600; }
@@ -358,7 +375,27 @@ td:first-child { white-space: nowrap; color: var(--muted); width: 80px; }
 table.vk td { padding: 4px 8px; }
 table.vk td:nth-child(2), table.vk td:nth-child(3) { white-space: nowrap; color: var(--muted); }
 @media (max-width: 640px) { table.vk td:nth-child(3) { display: none; } td:first-child { width: auto; } }
+table.results td:first-child { white-space: normal; width: 42%; color: var(--fg); }
 .warn { border-left: 3px solid #d97706; padding: 2px 10px; margin: 8px 0; }
+.viewer { margin: 8px 0 10px; }
+.vtabs { display: flex; flex-wrap: wrap; gap: 6px; }
+.viewer button { font: inherit; color: var(--fg); background: var(--card); border: 1px solid var(--line); cursor: pointer; }
+.viewer button:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+.vtabs button { border-radius: 999px; padding: 6px 12px; }
+.vtabs button[aria-selected="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.vstage { position: relative; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 4px 14px 12px; margin-top: 12px; touch-action: pan-y; }
+.vkicker { color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; margin: 10px 0 0; }
+.vstage h3 { color: var(--fg); font-size: 16px; margin: 2px 0 8px; }
+.vstage .foot { margin-top: 8px; }
+.vdash { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; }
+.vnav { display: flex; align-items: center; gap: 8px; }
+.vnav button { width: 36px; height: 36px; padding: 0; border-radius: 50%; font-size: 22px; line-height: 1; }
+.vcount { color: var(--muted); font-size: 13px; min-width: 4.5em; text-align: center; }
+.vdots { display: flex; flex-wrap: wrap; gap: 2px; justify-content: flex-end; }
+.vdots button { width: 28px; height: 28px; padding: 0; border: 0; background: transparent; border-radius: 50%; }
+.vdots button::after { content: ""; display: block; width: 8px; height: 8px; margin: auto; border-radius: 50%; background: var(--muted); }
+.vdots button[aria-current="true"]::after { background: var(--fg); transform: scale(1.25); }
+.vhint { color: var(--muted); font-size: 12px; margin: 6px 0 0; }
 """
 
 final_caption = f"~{TODAY:.1f} s"
@@ -366,16 +403,20 @@ doc = f"""<!doctype html><html lang="en" data-theme="dark"><head><meta charset="
 <meta name="viewport" content="width=device-width, initial-scale=1"><title>STT Progress Report</title>
 <style>{css}</style></head><body><main>
 <h1>On-device speech-to-text: what we gained</h1>
-<p class="sub">HardwareOne P4 + G2 glasses, Oct 3-11 2026. Every number below was measured in this project unless marked as an estimate. Version numbers are labels for the test builds, in the order they were made; the firmware's own version did not change.</p>
+<p class="sub">HardwareOne P4 + G2 glasses, Oct 3-Nov 8 2026. Every number below was measured in this project unless marked as an estimate. 1.1-2.0 are labels for the test builds, in the order they were made; the firmware's own version did not change in that run. 3.0 is the later microphone-path build on the same recognition model.</p>
 <table class="vk">{''.join(f'<tr><td><b>{html.escape(v)}</b></td><td>{html.escape(when)}</td><td>{html.escape(b)}</td><td>{html.escape(t)}</td></tr>' for v, when, b, t in VERSIONS)}</table>
 <div class="cards">
-  <div class="card"><div class="from">Caption delay after you stop talking</div><div class="big">3.6 s &rarr; ~1.0-1.1 s</div><div class="from">1.1 &rarr; 1.3-1.8, P4 mic, quiet room</div></div>
-  <div class="card"><div class="from">Short replies ("yeah", "okay")</div><div class="big">3.4-17 s &rarr; ~0.9 s</div><div class="from">no longer wait for the next sentence</div></div>
-  <div class="card"><div class="from">Free PSRAM at its lowest, long speech</div><div class="big">1.6 &rarr; 5.4 MB</div><div class="from">1.6 &rarr; 1.7, the 10 s phrase cap</div></div>
-  <div class="card"><div class="from">Speaker labels (2.0)</div><div class="big">91% right</div><div class="from">no caption delay added</div></div>
-  <div class="card"><div class="from">Invented words on pure noise</div><div class="big">30 &rarr; 9.5 /min</div><div class="from">deployed model vs old model</div></div>
-  <div class="card"><div class="from">500-hour training run on the Mac</div><div class="big">33 h &rarr; ~10 h</div><div class="from">same results, 3x faster steps</div></div>
+  <div class="card"><div class="k">Caption delay after you stop talking</div><div class="was">3.6 s</div><div class="now">&rarr; ~1.0–1.1 s</div><div class="note">1.1 &rarr; 1.3–1.8, P4 mic, quiet room</div></div>
+  <div class="card"><div class="k">Short replies ("yeah", "okay")</div><div class="was">3.4–17 s</div><div class="now">&rarr; ~0.9 s</div><div class="note">no longer waits for the next sentence</div></div>
+  <div class="card"><div class="k">Free PSRAM at its lowest, long speech</div><div class="was">1.6 MB</div><div class="now">&rarr; 5.4 MB</div><div class="note">1.6 &rarr; 1.7, the 10 s phrase cap</div></div>
+  <div class="card"><div class="k">Speaker labels (2.0)</div><div class="was">none</div><div class="now">91% right</div><div class="note">no caption delay added</div></div>
+  <div class="card"><div class="k">Invented words on pure noise</div><div class="was">30 /min</div><div class="now">&rarr; 9.5 /min</div><div class="note">deployed model vs old model</div></div>
+  <div class="card"><div class="k">500-hour training run on the Mac</div><div class="was">33 h</div><div class="now">&rarr; ~10 h</div><div class="note">same results, 3&times; faster steps</div></div>
+  <div class="card"><div class="k">Word errors at 1 ft (3.0)</div><div class="was">72%</div><div class="now">&rarr; 44–48%</div><div class="note">quiet clips 8/8 missed &rarr; 0/8</div></div>
 </div>
+<h3>Word errors, both tests, same scale</h3>
+{revisions}
+<p class="foot">Every bar is word errors, and the scale runs to 100%, so a short bar and a long bar are different recordings rather than two answers for one test. Close playlist, October, quiet room: 1.1 is 19.7% on 26 of 27 clips, and 1.8 is 18.3% on 25 of 27 clips. Version 2.0 and version 3 were not scored on that playlist. 1 foot, November, Mac mini speaker at volume 70: the microphone from before 3.0 scored 72.0% and 72.2%. Version 3 on that same playlist scored 44.3% and 48.0%. The recognition model is the same in every bar.</p>
 
 <h2>1. The model: accuracy and noise</h2>
 <h3>Broad error rate on the full test sets (lower is better)</h3>
@@ -465,10 +506,38 @@ doc = f"""<!doctype html><html lang="en" data-theme="dark"><head><meta charset="
 <p class="warn"><b>Accuracy:</b> the 1.3 report flagged about 2.5 points more word errors for 1.2 (18.2% &rarr; 20.5% in raw session averages). Scored clip by clip with lost console lines left out, 1.1 to 1.8 all land between 18.2% and 20.1%, so that loss does not reproduce. Tech words are the clear weak spot (about 50% errors on tech sentences); the next training run targets them.</p>
 <p class="warn"><b>Memory:</b> correction to the 1.3 report: 1.1's internal RAM fell to about 44 KB during each phrase's model rebuild, not 117 KB; from 1.2 the low point is about 112-117 KB (about 143 KB in later test batches). The speaker model's load at session start lowers it by 6-11 KB; moving ESP-DL's short-lived build buffers to PSRAM explicitly would win that back. A 256 KB cache was measured 11-22% faster but costs 131 KB of internal RAM, so it was rejected for excessive RAM consumption; the cache stays at 128 KB.</p>
 <p class="warn"><b>Speaker labels:</b> similar voices can merge (a whole-conversation relabelling pass or a larger model would help, if memory allows); overlapping speech gets one label.</p>
-<p class="warn"><b>Not used yet:</b> the faster memory clock (-68 ms) needs a long stability test first. Not yet timed on the glasses themselves. 1.4-2.0 ran in test builds; the stt-speedups branch carries all of it but has not run on the P4 as a whole yet (planned for 0.99.98, after the 15x5 switch).</p>
+<p class="warn"><b>Later measurement:</b> the 128-byte cache line in section 3 was withdrawn, and 250 MHz PSRAM completed its stability test. Both are in section 9. Section 3b's glasses delay is still an estimate from the P4 measurements. Section 9's glasses numbers are word errors on playback.</p>
 
 <h2>8. How it went</h2>
 <table>{''.join(f'<tr><td>{html.escape(d)}</td><td>{html.escape(t)}</td></tr>' for d, t in timeline)}</table>
+
+<h2>9. Version 3</h2>
+<p>The recognition model is still gen2-25397, and the speaker algorithms are unchanged. The gain is the path into the model. Saved onboard gain and the high-pass were ignored after a reboot, and the noise setting could be given values the segmenter rejects. The warm-up "Cancelled" was a microphone overrun before the session's first read; the noise baseline is now taken just before that read (40 of 40 fast cycles). Version 3 opens the onboard microphone itself: a 120 Hz high-pass, a gain taken from recent sessions (it moves only when three speech sessions agree), and a self-calibrating onset judge. The glasses microphone has its own detector profile and the same judge. Wake word and recordings keep the saved microphone settings. The automatic gain does not survive a reboot.</p>
+<p>Played from a Mac mini speaker into a P4X-EYE. One host decoder, on the device's own phrase boundaries. Two numbers are two runs.</p>
+<table class="results">
+<tr><td></td><td><b>Before</b></td><td><b>3.0</b></td></tr>
+<tr><td>Playlist at 1 ft, volume 70</td><td>72.0%, 72.2%</td><td>44.3%, 48.0%</td></tr>
+<tr><td>Quiet read clips, same playlist</td><td>8 of 8 missed</td><td>0 of 8 missed</td></tr>
+<tr><td>False captions on that playlist</td><td></td><td>none</td></tr>
+<tr><td>Close to the speaker, volume 85</td><td>22.0% at fixed gain &times;1</td><td>19.8-24.4% after the gain stepped from &times;8 to &times;5 on its own</td></tr>
+<tr><td>Glasses mic, 1 ft</td><td>72.2%; quiet clips missed 13 of 16</td><td>69.0%; quiet clips missed 5 of 16</td></tr>
+<tr><td>Glasses mic, close up</td><td></td><td>30.3%, 30.7% (read speech 7.1%)</td></tr>
+<tr><td>Bright hiss and noise</td><td></td><td>no captions</td></tr>
+<tr><td>Recorded meeting-room babble</td><td></td><td>the judge still adds fragments from other people in the recording</td></tr>
+</table>
+<p class="foot">Speaker playback, not live talkers. Two runs are not a held-out test. On 6 Nov, before this change, the same kind of replay raised clean read speech from 5.2% to 13.3% word errors, and the same clips 18 dB quieter from 10.3% to 89.4%, with 64% of those quieter words never segmented.</p>
+<h3>Cache line, after 2.0</h3>
+<p>The 128-byte cache line in section 3 was corrupting PSRAM at 250 MHz: about 11% of starts failed, and up to 31% of sessions failed at the end. The fix keeps 250 MHz and uses 64-byte lines. On the file bench, close time went from 1250 ms to 1360 ms and model time from 0.272 to 0.299 ms per millisecond of audio. Word errors (3.8% on that check) and speaker labels did not change. A soak of the fix had no firmware fault in 70 starts and 39 complete sessions.</p>
+<h3>Draft pacing, deployed 3 Nov</h3>
+<p>x2f pacing shipped on its own. Speaker labels moved from about 7.3 s to about 2.3 s after the caption, with no word-error cost on that check. On the later paired fixtures the label median was 1.7-2.8 s against 5.4-23.5 s, and those six x2f captures had no watchdog where the six production captures had 11. Final captions are not faster. A storage-prevention patch measured the same week was held.</p>
+<p class="foot">Compact two-speaker separators and an overlap detector were measured against this model and did not beat the single-speaker path, so they are not in 3.0. Still unchecked on the device: live talkers, gain across a reboot, wake word, recordings, and the gain step's nearest-step rounding (checked on the host).</p>
 </main></body></html>"""
+# The chart viewer is maintained in docs/index.html. Reattach it after a rebuild.
+existing = OUT.read_text() if OUT.exists() else ""
+script_at = existing.find("<script>")
+script_end = existing.find("</script>")
+if script_at >= 0 and script_end > script_at:
+    script = existing[script_at:script_end + len("</script>")]
+    doc = doc.replace("</body>", script + "</body>", 1)
 OUT.write_text(doc)
 print(OUT)

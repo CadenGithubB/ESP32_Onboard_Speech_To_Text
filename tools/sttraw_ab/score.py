@@ -284,7 +284,9 @@ def main():
     lm = hw1lm.read_lm(LM_PATH)
 
     def decode(x):
-        return hw1lm.decode_int8(rec.logits(x.astype('<i2')), rec.exponent, lm) if x.size >= 320 else ''
+        # hw1lm dequantises as q * 2^-exponent; rec.exponent is the ESP-DL tensor exponent (-1), so negate it
+        # (as release_benchmark.recognize does). Before 10 Nov 2026 the LM saw logits 4x too large.
+        return hw1lm.decode_int8(rec.logits(x.astype('<i2')), -rec.exponent, lm) if x.size >= 320 else ''
 
     m = json.loads(args.manifest.read_text())
     raw16 = np.fromfile(args.raw, '<i2')
@@ -306,7 +308,9 @@ def main():
         segs = r['segments']
         texts = [decode(raw16[g['start']:min(g['end'], g['voiced_end'] + TAIL)]) for g in segs]
         res = score_arm(segs, texts, items, assign(segs, items, to_src), to_src, minutes)
-        res.update(options=opts, config=r['config'], texts=texts)
+        # segmenter_config (tools/segmenter_replay only; None from stt_raw_replay) records every SegmenterConfig
+        # field in effect, so arms that differ only in fields outside the legacy 'config' stay distinguishable.
+        res.update(options=opts, config=r['config'], segmenter_config=r.get('segmenter_config'), texts=texts)
         out['arms'][name] = res
         print(name, json.dumps(dict(segments=res['segments'], wer=res['total']['wer'], false=res['false_captions'])), flush=True)
     if args.source_baseline:

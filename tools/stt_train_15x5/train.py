@@ -50,7 +50,7 @@ import torch
 import torch.nn.functional as F
 
 from common import QuartzNet, load_checkpoint, save_checkpoint as _save_checkpoint, BLANK
-from citrinet import Citrinet, is_citrinet, load_vocab
+from citrinet import Citrinet, is_citrinet, load_vocab as load_citrinet_vocab  # diagnostics.load_vocab below shadowed it
 
 
 def save_checkpoint(model, template, config, directory):
@@ -59,7 +59,8 @@ def save_checkpoint(model, template, config, directory):
         (Path(directory) / 'vocab.txt').write_text('\n'.join(model.tokenizer.vocab) + '\n')
 from data import Store, Augmenter, TrainSet, MixedBatchSampler, collate
 from evaluate import evaluate_stores
-from diagnostics import audit_stores, atomic_json, sha256, digest, paired_changes
+from diagnostics import (audit_stores, atomic_json, sha256, digest, paired_changes, load_vocab,
+                         vocab_score, condition_records, summarize, wer_difference_interval)
 from training_state import seed_all, rng_state, restore_rng, save_state, restore_matching, Exposure
 
 
@@ -114,8 +115,22 @@ GENERAL2_MIX = [
     ('voxpopuli-train', 0.10, False),
     ('voxpopuli-train-b', 0.08, False),
 ]
+# --mix tech: general2 scaled to 90%, plus the Piper tech-term store at a tenth
+# of each batch. The store is clean speech; the augmenter still adds noise and rooms.
+TECH_MIX = [
+    ('peoples-clean-train', 0.135, False),
+    ('peoples-clean-train2', 0.135, False),
+    ('commonvoice-en-train', 0.108, False),
+    ('ami-sdm-train', 0.135, True),
+    ('ami-ihm-train', 0.090, False),
+    ('librispeech-train-clean-100', 0.072, False),
+    ('librispeech-train-clean-360-p28', 0.063, False),
+    ('voxpopuli-train', 0.090, False),
+    ('voxpopuli-train-b', 0.072, False),
+    ('tech-speech-train', 0.100, False),
+]
 MIXES = {'run2': TRAIN_MIX, 'broad': BROAD_MIX, 'expanded': EXPANDED_MIX, 'general': GENERAL_MIX,
-         'general2': GENERAL2_MIX}
+         'general2': GENERAL2_MIX, 'tech': TECH_MIX}
 NOISE_ONLY = '__noise_only__'  # mix entry name for data.NoiseOnlyStore
 
 
@@ -235,7 +250,13 @@ def parse_deadline(text):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument('--init', required=True, help='NeMo-format checkpoint dir to start from')
+    p.add_argument('--init', required=True,
+                   help='NeMo-format checkpoint dir. With --weights checkpoint this is the starting model. '
+                        'With --weights scratch it supplies the network shape and the feature front-end only')
+    p.add_argument('--weights', choices=['checkpoint', 'scratch'], default='checkpoint',
+                   help='checkpoint loads --init. scratch starts the same network untrained, so the log '
+                        'covers the whole run from step 0. Batch-norm statistics update in a scratch run '
+                        'and stay frozen when loading a checkpoint')
     p.add_argument('--out', required=True)
     p.add_argument('--deadline', required=True, help="HH:MM local time to stop at the latest, or '+30h'")
     p.add_argument('--target-hours', type=float, default=175.0,
@@ -291,14 +312,39 @@ def main():
     p.add_argument('--gradient-diagnostics-every', type=int, default=50,
                    help='per-source microbatch gradient norms; 0 disables the expensive diagnostic')
     p.add_argument('--diagnostic-sets', nargs='*', default=[],
-                   help='Additional DEVELOPMENT stores (e.g. noise-only/noisy speech); reported but not selected on')
+                   help='Additional DEVELOPMENT stores. Reported, including the vocab score, but not selected on')
+    p.add_argument('--vocab',
+                   help='Phrase list for the vocab score: one phrase per line, or a TSV whose second column '
+                        'is headed spoken. Scored on the diagnostic sets only. Does not pick the checkpoint')
     p.add_argument('--audit-test-stores', nargs='*', default=[],
                    help='reserved test stores to check for overlap, never evaluated during training')
     p.add_argument('--fingerprint-audio', choices=['sha256', 'metadata'], default='sha256')
     p.add_argument('--schedule', choices=['audio', 'legacy-wall'], default='audio')
+    p.add_argument('--rough-numbers', choices=['on', 'off'], default='off',
+                   help='Training only: fake-quantize each conv weight and each post-ReLU activation '
+                        'to signed int8, with a straight-through estimator. Batch-norm stays in the graph. '
+                        'Leave off for a short continuation. The network shape and the int8 export stay the same')
+    p.add_argument('--farther', choices=['on', 'off'], default='off',
+                   help='Training only: more room reverberation (about 90%% of close clips and 70%% of clips '
+                        'that are already far) and a quiet level near -50 dBFS (-57 to -47) instead of '
+                        '-40 to -12. Every other mix and draw stays as it is')
+    p.add_argument('--tech-far-fraction', type=float, default=0.0,
+                   help='Later run only. This fraction of tech-speech clips is rendered far and quiet; '
+                        'the rest stay at the stored clean level. 0 leaves every clip on the normal path. '
+                        'Do not combine with --farther')
     a = p.parse_args()
     if a.accum < 1 or a.workers < 0 or a.warmup < 1 or a.target_hours <= 0:
         p.error('accum/warmup/target-hours must be positive and workers nonnegative')
+    if not 0.0 <= a.tech_far_fraction <= 1.0:
+        p.error('--tech-far-fraction must be between 0 and 1')
+    if a.farther == 'on' and a.tech_far_fraction > 0:
+        p.error('--farther and --tech-far-fraction are two acoustic changes; run them separately')
+    from data import STORES
+    if a.mix == 'tech' and 'tech-speech-dev' not in a.diagnostic_sets:
+        a.diagnostic_sets = [*a.diagnostic_sets, 'tech-speech-dev']
+    if a.mix == 'tech' and not a.vocab:
+        a.vocab = str(STORES / 'tech-speech-dev' / 'vocab.txt')
+    vocab_phrases = load_vocab(a.vocab) if a.vocab else []
     seed_all(a.seed)
     train_mix = MIXES[a.mix]
     if any('test' in name.split('-') for name in a.diagnostic_sets):
@@ -334,7 +380,9 @@ def main():
               ('deadline', 'out', 'init', 'max_footprint_gb', 'save_steps', 'workers', 'benchmark_steps', 'stop_after_steps')}
     identity = {'recipe': recipe, 'datasets': audit['fingerprint'],
                 'code': {p.name: sha256(p) for p in sorted(Path(__file__).parent.glob('*.py'))},
-                'initial_weights': sha256(Path(a.init)/'model_weights.ckpt'),
+                'initial_weights': ('scratch' if a.weights == 'scratch'
+                                    else sha256(Path(a.init)/'model_weights.ckpt')),
+                'preprocessor_ckpt': sha256(Path(a.init)/'model_weights.ckpt'),
                 'initial_config': sha256(Path(a.init)/'model_config.yaml'),
                 'runtime': {'python': sys.version, 'torch': torch.__version__, 'numpy': np.__version__,
                             'platform': platform.platform(),
@@ -344,6 +392,9 @@ def main():
     vocab_path = Path(a.init) / 'vocab.txt'
     if vocab_path.exists():
         identity['tokenizer_sha256'] = sha256(vocab_path)
+    if a.vocab:
+        identity['vocab_sha256'] = sha256(Path(a.vocab))
+        identity['vocab_phrases'] = len(vocab_phrases)
     identity['fingerprint'] = digest(identity)
     manifest_path = out / 'run-manifest.json'
     if manifest_path.exists() and json.loads(manifest_path.read_text()) != identity:
@@ -352,14 +403,25 @@ def main():
     device = torch.device(a.device)
     config, template = load_checkpoint(a.init)
     if is_citrinet(config):
-        model = Citrinet(config, load_vocab(a.init)).load_nemo(template).to(device)
+        model = Citrinet(config, load_citrinet_vocab(a.init)).load_nemo(template).to(device)
         # The tokenizer alone goes to the DataLoader workers (never the MPS model).
         encoder, blank, reduction = model.tokenizer.encode, model.blank, 8
     else:
-        model = QuartzNet(config).load_nemo(template).to(device)
+        model = QuartzNet(config)
+        if a.weights == 'scratch':
+            model.init_scratch()
+        else:
+            model.load_nemo(template)
+        model = model.to(device)
         encoder, blank, reduction = None, BLANK, 2
     # Citrinet keeps its own plain blocks, and its MPS eval parity is unchecked.
     quartznet = isinstance(model, QuartzNet)
+    if a.weights == 'scratch' and not quartznet:
+        p.error('--weights scratch is implemented for QuartzNet')
+    if a.rough_numbers == 'on' and not quartznet:
+        p.error('--rough-numbers is implemented for QuartzNet')
+    if quartznet:
+        model.set_rough_numbers(a.rough_numbers == 'on')
     custom_dw = model.set_fast(a.fast_dwconv == 'on') if quartznet else 0
     eval_bucket = (micro_seconds, micro_items) if device.type == 'mps' and a.eval_device == 'mps' \
         and quartznet else None
@@ -406,6 +468,8 @@ def main():
          fused_adamw=a.fused_adamw, adamw_fused=optimizer.param_groups[0].get('fused'),
          eval_device=('mps' if eval_bucket else 'cpu') if device.type == 'mps' else str(device),
          eval_bucket=eval_bucket, workers=a.workers, seed=a.seed, schedule=a.schedule,
+         rough_numbers=a.rough_numbers, farther=a.farther, tech_far_fraction=a.tech_far_fraction,
+         weights=a.weights, freeze_batchnorm=a.weights == 'checkpoint',
          identity=identity['fingerprint'], gradient_diagnostics_every=a.gradient_diagnostics_every)
 
     def save_resume():
@@ -417,12 +481,14 @@ def main():
         import lc3codec
         lc3codec._load()
     noise = noise_source(a.noise_pool)
-    augmenter = Augmenter(noise, Store('musan-speech'), Store('rirs'), g2_prob=a.g2_prob)
+    augmenter = Augmenter(noise, Store('musan-speech'), Store('rirs'), g2_prob=a.g2_prob,
+                          farther=a.farther == 'on')
     only_noise = noise if a.noise_only_pool == 'same' else noise_source(a.noise_only_pool)
     if a.noise_only_share > 0:
         train_mix = train_mix + [(NOISE_ONLY, a.noise_only_share, False)]
     stores = [NoiseOnlyStore(only_noise) if name == NOISE_ONLY else Store(name) for name, _, _ in train_mix]
     dataset = TrainSet(stores, [f for _, _, f in train_mix], template, augmenter, seed=a.seed,
+                       tech_far_fraction=a.tech_far_fraction,
                        **({'encoder': encoder} if encoder else {}))
     total_steps = (a.benchmark_steps * a.accum) or 10 ** 9
     sampler = MixedBatchSampler(stores, [w for _, w, _ in train_mix], micro_seconds, micro_items,
@@ -446,14 +512,15 @@ def main():
     # Score the starting point first so "best" can never be worse than it.
     if best is None and not a.benchmark_steps:
         best = run_eval(model, template, config, out, step, best, emit, device, guard, a.patience, dev_sets,
-                        rollback=a.rollback == 'on', bucket=eval_bucket, optimizer=optimizer, diagnostic_sets=a.diagnostic_sets)
+                        rollback=a.rollback == 'on', bucket=eval_bucket, optimizer=optimizer, diagnostic_sets=a.diagnostic_sets,
+                        vocab_phrases=vocab_phrases)
         guard['last_eval_audio'] = -(a.eval_hours - a.first_eval_hours) * 3600
         save_resume()
     guard.setdefault('last_eval_audio', 0.0)
     process_audio, t_process = 0.0, time.time()
     window_loss, window_n, t_window = 0.0, 0, time.time()
     micro, micro_loss = 0, 0.0
-    train_mode(model)
+    train_mode(model, freeze_bn=a.weights == 'checkpoint')
 
     if pending_rng is not None:
         restore_rng(pending_rng)
@@ -534,9 +601,12 @@ def main():
         guard['clipped_steps'] = guard.get('clipped_steps', 0) + int(float(norm) > 5.0)
         micro_loss /= effective_items
         if step % 50 == 0:
+            report = exposure.report()
             emit(event='health', step=step, gradient_norm=float(norm), clipped=float(norm) > 5.0,
-                 effective_items=effective_items, sources=exposure.report(), nonfinite_ctc=0,
-                 clipped_steps=guard['clipped_steps'], optimizer_steps_observed=guard['optimizer_steps_observed'])
+                 effective_items=effective_items, sources=report,
+                 source_mean_loss={name: round(row['mean_loss'], 4) for name, row in report.items()},
+                 nonfinite_ctc=0, clipped_steps=guard['clipped_steps'],
+                 optimizer_steps_observed=guard['optimizer_steps_observed'])
         optimizer.step()
         step += 1
         window_loss += micro_loss
@@ -582,14 +652,16 @@ def main():
 
         if guard['audio_seconds'] - guard['last_eval_audio'] >= a.eval_hours * 3600:
             best = run_eval(model, template, config, out, step, best, emit, device, guard, a.patience, dev_sets,
-                            rollback=a.rollback == 'on', bucket=eval_bucket, optimizer=optimizer, diagnostic_sets=a.diagnostic_sets)
+                            rollback=a.rollback == 'on', bucket=eval_bucket, optimizer=optimizer, diagnostic_sets=a.diagnostic_sets,
+                            vocab_phrases=vocab_phrases)
             guard['last_eval_audio'] = guard['audio_seconds']
             save_resume()
-            train_mode(model)
+            train_mode(model, freeze_bn=a.weights == 'checkpoint')
 
     save_checkpoint(model, template, config, out / 'last')
     best = run_eval(model, template, config, out, step, best, emit, device, guard, a.patience, dev_sets,
-                    rollback=a.rollback == 'on', bucket=eval_bucket, optimizer=optimizer, diagnostic_sets=a.diagnostic_sets)
+                    rollback=a.rollback == 'on', bucket=eval_bucket, optimizer=optimizer, diagnostic_sets=a.diagnostic_sets,
+                    vocab_phrases=vocab_phrases)
     save_resume()
     emit(event='finished', step=step, best=best, audio_hours=round(guard['audio_seconds'] / 3600, 2),
          sources=exposure.report())
@@ -611,18 +683,21 @@ def set_fused(optimizer, fused):
                 state['step'] = state['step'].to(device=p.device if fused else 'cpu', dtype=torch.float32)
 
 
-def train_mode(model):
-    """Train weights but keep the pretrained BatchNorm statistics: augmented,
-    padded fine-tuning batches would otherwise drag them off the real-audio
-    distribution."""
+def train_mode(model, freeze_bn=True):
+    """Train weights. A checkpoint run keeps the pretrained BatchNorm statistics:
+    augmented, padded fine-tuning batches would otherwise drag them off the
+    real-audio distribution. A scratch run has no pretrained statistics, so
+    batch-norm stays in training and learns them."""
     model.train()
+    if not freeze_bn:
+        return
     for m in model.modules():
         if isinstance(m, torch.nn.modules.batchnorm._BatchNorm):
             m.eval()
 
 
 def run_eval(model, template, config, out, step, best, emit, device, guard, patience, dev_sets=DEV_SETS,
-             rollback=True, bucket=None, optimizer=None, diagnostic_sets=()):
+             rollback=True, bucket=None, optimizer=None, diagnostic_sets=(), vocab_phrases=()):
     selection_sets = dev_sets
     dev_sets = list(dev_sets) + [(name, 300) for name in diagnostic_sets
                                  if name not in {n for n, _ in dev_sets}]
@@ -650,22 +725,57 @@ def run_eval(model, template, config, out, step, best, emit, device, guard, pati
         raise ValueError('Incomplete or empty-word selection evaluation')
     wers = {name: results[name]['wer'] for name, _ in selection_sets}
     score = broad_score(wers) if selection_sets is BROAD_DEV_SETS else float(np.mean(list(wers.values())))
+    diagnostics = {}
+    for name in diagnostic_sets:
+        if name not in results:
+            continue
+        row = {key: results[name][key] for key in
+               ('wer', 'errors', 'words', 'substitutions', 'deletions', 'insertions', 'phantom_words_per_minute')}
+        if vocab_phrases:
+            row.update(vocab_score(results[name]['records'], vocab_phrases))
+        diagnostics[name] = row
+    vocab = vocab_score([record for name in diagnostic_sets for record in results.get(name, {}).get('records', [])],
+                        vocab_phrases) if vocab_phrases else None
+    previous_path = out / 'previous-evaluation.json'
+    previous = json.loads(previous_path.read_text()) if previous_path.exists() else None
+    compared = {}
+    if previous:
+        for name, result in results.items():
+            if name not in previous:
+                continue
+            result['paired'] = paired_changes(previous[name]['records'], result['records'])
+            compared[name] = result['paired']['interval']
+    current_groups = condition_records(results)
+    previous_groups = condition_records(previous) if previous else {}
+    condition_report = {}
+    for name, rows in current_groups.items():
+        entry = summarize(rows)
+        if name in previous_groups:
+            entry['interval'] = wer_difference_interval(previous_groups[name], rows)
+        condition_report[name] = entry
     metrics = {'score': score, 'step': step, 'audio_hours': round(guard['audio_seconds'] / 3600, 2),
-               'sets': {k: v['wer'] for k, v in results.items()}}
+               'sets': {k: v['wer'] for k, v in results.items()},
+               'counts': {k: {key: v[key] for key in ('substitutions', 'deletions', 'insertions', 'errors', 'words')}
+                          for k, v in results.items()},
+               'conditions': condition_report, 'diagnostics': diagnostics}
+    if compared:
+        metrics['compared'] = compared
+    if vocab:
+        metrics['vocab_score'] = vocab['vocab_score']
+        metrics['vocab_hits'] = vocab['vocab_hits']
+        metrics['vocab_terms'] = vocab['vocab_terms']
+    reported = {}
+    if vocab and vocab['vocab_score'] is not None:
+        reported = {'vocab_score': round(vocab['vocab_score'], 4), 'vocab_hits': vocab['vocab_hits'],
+                    'vocab_terms': vocab['vocab_terms'], 'vocab_missed': vocab['vocab_missed']}
     emit(event='eval', step=step, score=round(score, 4), eval_s=round(time.time() - t0),
          audio_hours=metrics['audio_hours'], mem_gb=round(footprint_gb(), 2),
          **{k: round(v['wer'], 4) if v['wer'] is not None else None for k, v in results.items()},
-         diagnostics={k: {x: v[x] for x in ('wer','errors','words','phantom_words_per_minute')}
-                      for k,v in results.items() if k in diagnostic_sets})
+         **reported, diagnostics=diagnostics, compared=compared, conditions=condition_report)
     # Every evaluated point is kept (~76 MB each for the 15x5).
     snapshot = out / 'evals' / f'step_{step:06d}'
     save_checkpoint(model, template, config, snapshot)
     (snapshot / 'metrics.json').write_text(json.dumps(metrics, indent=2))
-    previous_path = out / 'previous-evaluation.json'
-    if previous_path.exists():
-        previous = json.loads(previous_path.read_text())
-        for name, result in results.items():
-            result['paired'] = paired_changes(previous[name]['records'], result['records'])
     atomic_json(snapshot / 'utterances.json', results)
     atomic_json(previous_path, results)
     guard['last_eval_step'] = step

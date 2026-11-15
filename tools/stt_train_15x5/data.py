@@ -96,9 +96,10 @@ def _rms(x):
 class Augmenter:
     """Random device/room/noise conditions; mic-agnostic by design."""
 
-    def __init__(self, noise, babble, rirs, strength=1.0, g2_prob=0.0):
+    def __init__(self, noise, babble, rirs, strength=1.0, g2_prob=0.0, farther=False):
         self.noise, self.babble, self.rirs = noise, babble, rirs
         self.strength = strength
+        self.farther = farther
         self.speech_pool = []  # fallback babble source: other training speech
         # Fraction of items passed through the G2 glasses mic channel (gain
         # control + LC3 32 kbps, occasional concealed frame loss). 0 = off.
@@ -139,9 +140,14 @@ class Augmenter:
             return None
         return sum(rng.choice(self.speech_pool).random_chunk(rng, n) for _ in range(rng.randint(3, 6)))
 
-    def __call__(self, x, rng, far_field=False, allow_babble=True):
+    def __call__(self, x, rng, far_field=False, allow_babble=True, presentation='same'):
         # allow_babble=False for noise-only items: babble is speech, and an empty
         # transcript over it would teach the model to ignore real voices.
+        # 'clean' keeps the stored clip. 'far' uses the farther room and level.
+        # 'same' uses this augmenter's default, which --farther changes.
+        if presentation == 'clean':
+            return np.asarray(x, np.float32)
+        farther = self.farther or presentation == 'far'
         s = self.strength
         # Speed perturbation (pitch + tempo), standard for ASR robustness.
         r = rng.random()
@@ -150,7 +156,9 @@ class Augmenter:
         elif r < 0.5 * s:
             x = resample_poly(x, 10, 11).astype(np.float32)  # 1.1x speed
         # Room reverberation (less often for already-distant recordings).
-        if rng.random() < (0.15 if far_field else 0.45) * s:
+        # The farther setting raises both rates and leaves every other draw alone.
+        room = (0.70 if far_field else 0.90) if farther else (0.15 if far_field else 0.45)
+        if rng.random() < room * s:
             rir = self.rirs.samples(rng.randrange(len(self.rirs))) if self.rirs is not None \
                 else self._synthetic_rir(rng)
             direct = int(np.argmax(np.abs(rir)))
@@ -177,7 +185,8 @@ class Augmenter:
             sos = butter(2, [low, high], btype='bandpass', fs=SAMPLE_RATE, output='sos')
             x = sosfilt(sos, x).astype(np.float32)
         # Level, occasional hard clipping, low-level hiss, int16 quantisation.
-        target_db = rng.uniform(-40, -12)
+        # Farther speech sits near the measured quiet level, about -50 dBFS.
+        target_db = rng.uniform(-57, -47) if farther else rng.uniform(-40, -12)
         x = x * (10 ** (target_db / 20) / _rms(x))
         if rng.random() < 0.05 * s:
             x = x * rng.uniform(2, 6)
@@ -201,12 +210,14 @@ class Augmenter:
 class TrainSet(torch.utils.data.Dataset):
     """Items are (store_index, item_index) pairs chosen by the sampler."""
 
-    def __init__(self, stores, far_field, frontend_state, augmenter, seed=0, encoder=encode):
+    def __init__(self, stores, far_field, frontend_state, augmenter, seed=0, encoder=encode,
+                 tech_far_fraction=0.0):
         # encoder: transcript -> label ids (letters for QuartzNet, WordPiece for Citrinet)
         self.stores, self.far_field = stores, far_field
         self.encoder = encoder
         self.frontend = Frontend(frontend_state)
         self.augmenter = augmenter
+        self.tech_far_fraction = tech_far_fraction
         if augmenter is not None and augmenter.babble is None:
             augmenter.speech_pool = list(stores)
         self.seed = seed
@@ -220,7 +231,11 @@ class TrainSet(torch.utils.data.Dataset):
         store = self.stores[s]
         x = store.samples(i)
         if self.augmenter is not None:
-            x = self.augmenter(x, rng, self.far_field[s], allow_babble=not getattr(store, 'noise_only', False))
+            presentation = 'same'
+            if self.tech_far_fraction and store.name.startswith('tech-speech'):
+                presentation = 'far' if rng.random() < self.tech_far_fraction else 'clean'
+            x = self.augmenter(x, rng, self.far_field[s], allow_babble=not getattr(store, 'noise_only', False),
+                               presentation=presentation)
         feats = self.frontend(x, dither=True, rng=np.random.default_rng(rng.randrange(1 << 30)))
         label = self.encoder(store.texts[i])
         # Speed-up can make a label too long for CTC; the collate drops those.

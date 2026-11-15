@@ -7,8 +7,16 @@ minimal app that uses it, and the tools that train, export, deploy and test the 
 microphone-to-serial captions example; the model and language model it needs are attached to the
 [model-gen2-25397 release](https://github.com/CadenGithubB/HardwareOne_Speech_To_Text/releases/tag/model-gen2-25397).
 
+**Version 3.1 (15 November 2026):** a level-robust phrase onset (on by default) that in host replay keeps
+most speech at the recorded 1 ft level inside phrases (much quieter speech is still missed), opt-in onset noise controls, segmenter replay tools, the scorers'
+exponent-sign fix, and the trainer and exporter updates behind the 1000-h and 2000-h recognizer runs. The
+device model is still gen2-25397. Voice Model 3 and its `2^-30` recognizer front end wait on branch
+`voice-model-3-frontend` until a package is chosen. Nothing in 3.1 has run on a P4 yet; see
+[the handoff](docs/STT_PRODUCT_HANDOFF.md), [the onset write-up](docs/STT_LEVEL_ROBUST_ONSET.md),
+[HardwareOne integration](docs/STT_ENGINE_INTEGRATION.md) and [the board test plan](docs/STT_BOARD_TEST_PLAN.md).
+
 - [Version report](https://cadengithubb.github.io/HardwareOne_Speech_To_Text/) (`docs/index.html`, served by
-  GitHub Pages): how caption speed, memory and accuracy changed across test versions 1.1-2.0.
+  GitHub Pages): how caption speed, memory and accuracy changed across test versions 1.1-3.0.
 - `firmware/components/hw1_stt`: the speech engine (frontend, ESP-DL runtime, segmenter, LM decoder) as an
   ESP-IDF component; `firmware/examples/p4_eye_captions`: the minimal app.
 - `tools/stt_train_15x5`: QuartzNet 15x5 fine-tuning, data stores and benchmarks.

@@ -483,6 +483,19 @@ extern "C" void app_main() {
   cfg.segmentation.noise_percentile = 25;
   cfg.segmentation.silence_blip_samples = 3 * hw1::stt::kSegmentAnalysisSamples;
   cfg.segmentation.hard_cut_search_samples = 2 * kSampleRate;
+#if CONFIG_CAPTIONS_DECISION_PRE_EMPHASIS
+  // Level-robust onset: phrases may also open on the pre-emphasised level,
+  // matched to the room's ambient (stt_segmenter.h). Recognizer audio is unchanged.
+  cfg.segmentation.decision_pre_emphasis = 97;
+  cfg.segmentation.decision_gain_pct = 150;
+#endif
+#if CONFIG_CAPTIONS_DECISION_MODULATION_GATE
+  // Noise controls for the onset above (stt_segmenter.h): the pre-emphasised level
+  // votes only while modulated, and a phrase it alone opened needs a raw latch
+  // before raw votes may hold it open.
+  cfg.segmentation.decision_modulation_ratio_pct = 300;
+  cfg.segmentation.decision_pre_hold_requires_raw = true;
+#endif
 #if CONFIG_CAPTIONS_TRIM_SILENCE
   cfg.tail_samples = kSampleRate / 2;
 #endif

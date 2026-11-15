@@ -69,8 +69,10 @@ int main() {
     size_t comparisons=0,segments=0;
     // Fixed and adaptive endpoints, forced overlap, quiet-point hard cuts,
     // percentile noise, blip tolerance and short closes; no tuning is applied
-    // to a production profile by this synthetic test.
-    for(unsigned mode=0;mode<6;++mode) for(unsigned seed=1;seed<=20;++seed) {
+    // to a production profile by this synthetic test. Modes 6-9 repeat the
+    // adaptive cases with the pre-emphasised decision (decision_pre_emphasis);
+    // modes 10-11 add its noise controls (modulation gate and pre hold).
+    for(unsigned mode=0;mode<12;++mode) for(unsigned seed=1;seed<=20;++seed) {
         SegmenterConfig c;
         c.max_segment_samples=16000;c.min_segment_samples=3200;
         c.min_voice_samples=320;c.pre_roll_samples=480;
@@ -80,6 +82,13 @@ int main() {
         if(mode>=3) {c.adaptive=true;c.calibration_samples=1600;c.noise_window_frames=50;}
         if(mode==4) {c.noise_percentile=25;c.silence_blip_samples=320;}
         if(mode==5) {c.hard_cut_search_samples=3200;c.short_close_silence_samples=3200;}
+        if(mode>=6) {c.adaptive=true;c.calibration_samples=1600;c.noise_window_frames=50;c.decision_pre_emphasis=97;}
+        if(mode==7) {c.noise_percentile=25;c.silence_blip_samples=320;}
+        if(mode==8) {c.hard_cut_search_samples=3200;c.short_close_silence_samples=3200;c.decision_gain_pct=150;}
+        if(mode==9) {c.freeze_noise_during_speech=true;c.noise_percentile=25;c.decision_pre_emphasis=100;}
+        if(mode==10) {c.noise_percentile=25;c.silence_blip_samples=320;c.decision_modulation_ratio_pct=300;c.decision_pre_hold_requires_raw=true;}
+        if(mode==11) {c.hard_cut_search_samples=3200;c.short_close_silence_samples=3200;c.decision_gain_pct=150;
+                      c.decision_modulation_ratio_pct=150;c.decision_pre_hold_requires_raw=true;}
         std::mt19937 rng(seed);
         std::vector<int16_t> pcm;
         // Long speech runs force hard limits, with short gaps and quiet word

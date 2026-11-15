@@ -180,6 +180,7 @@ class Block(nn.Module):
             self.norms.append(nn.BatchNorm1d(out, eps=1e-3, momentum=0.05))
             channels = out
         self.residual = cfg.get('residual', False)
+        self.rough_numbers = False
         if self.residual:
             self.res_conv = nn.Conv1d(in_channels, out, 1, bias=False)
             self.res_norm = nn.BatchNorm1d(out, eps=1e-3, momentum=0.05)
@@ -190,21 +191,22 @@ class Block(nn.Module):
 
     def forward(self, x, lengths):
         residual_in, residual_len = x, lengths
+        rough = self.rough_numbers
         for r, (convs, norm) in enumerate(zip(self.convs, self.norms)):
             x = x * _mask(lengths, x.shape[-1], x.device)
-            x = convs[0](x)
+            x = _conv(convs[0], x, rough)
             if r == 0 and self.stride > 1:
                 lengths = self.out_lengths(lengths)
             if len(convs) > 1:
                 x = x * _mask(lengths, x.shape[-1], x.device)
-                x = convs[1](x)
+                x = _conv(convs[1], x, rough)
             x = norm(x)
             if r + 1 < self.repeat:
-                x = F.relu(x)
+                x = _relu_out(x, rough)
         if self.residual:
-            y = self.res_conv(residual_in * _mask(residual_len, residual_in.shape[-1], residual_in.device))
+            y = _conv(self.res_conv, residual_in * _mask(residual_len, residual_in.shape[-1], residual_in.device), rough)
             x = x + self.res_norm(y)
-        return F.relu(x), lengths
+        return _relu_out(x, rough), lengths
 
     def forward_fast(self, x, lengths, mask):
         """forward() with the [B,1,T] bool mask passed in and handed on, and
@@ -212,8 +214,9 @@ class Block(nn.Module):
         frozen BN and ReLU act per frame, so what they leave in padded frames
         is masked off before the next conv, the residual and the head."""
         residual_in, residual_mask = x, mask
+        rough = self.rough_numbers
         for r, (convs, norm) in enumerate(zip(self.convs, self.norms)):
-            x = convs[0](x * mask)
+            x = _conv(convs[0], x * mask, rough)
             if r == 0 and self.stride > 1:
                 lengths = self.out_lengths(lengths)
                 mask = _mask(lengths, x.shape[-1], x.device, torch.bool)
@@ -222,13 +225,40 @@ class Block(nn.Module):
             if len(convs) > 1:
                 if norm.training:  # BN batch statistics would count the padded frames
                     x = x * mask
-                x = convs[1](x)
+                x = _conv(convs[1], x, rough)
             x = norm(x)
             if r + 1 < self.repeat:
-                x = F.relu(x)
+                x = _relu_out(x, rough)
         if self.residual:
-            x = x + self.res_norm(self.res_conv(residual_in * residual_mask))
-        return F.relu(x), lengths, mask
+            x = x + self.res_norm(_conv(self.res_conv, residual_in * residual_mask, rough))
+        return _relu_out(x, rough), lengths, mask
+
+
+def fake_quant_signed_int8(x):
+    """Nearest signed-int8 quantizer with a straight-through estimator.
+
+    The scale is this tensor's own max absolute value. Values clamp to -128..127.
+    The backward pass treats the rounding as the identity, so the weights still learn.
+    """
+    amax = x.detach().abs().amax().clamp(min=1e-8)
+    scale = amax / 127.0
+    quantized = torch.round(x / scale).clamp(-128, 127) * scale
+    return x + (quantized - x).detach()
+
+
+def _conv(conv, x, rough):
+    """Conv forward. With rough numbers, the weight is fake-quantized first."""
+    weight = fake_quant_signed_int8(conv.weight) if rough else conv.weight
+    if (isinstance(conv, DepthwiseConv1d) and conv.fast and conv.custom_ok and torch.is_grad_enabled()
+            and x.device.type == 'mps' and x.dtype == weight.dtype == torch.float32
+            and not torch.is_autocast_enabled('mps')):
+        return _DepthwiseConv1dFn.apply(x, weight, conv.padding[0], conv.dilation[0])
+    return F.conv1d(x, weight, conv.bias, conv.stride, conv.padding, conv.dilation, conv.groups)
+
+
+def _relu_out(x, rough):
+    y = F.relu(x)
+    return fake_quant_signed_int8(y) if rough else y
 
 
 def _mask(lengths, size, device, dtype=torch.float32):
@@ -246,7 +276,33 @@ class QuartzNet(nn.Module):
             self.blocks.append(Block(cfg, channels))
             channels = cfg['filters']
         self.head = nn.Conv1d(channels, len(VOCAB) + 1, 1, bias=True)
+        self.rough_numbers = False
         self.set_fast(fast)
+
+    def init_scratch(self):
+        """Seeded untrained weights. The feature front-end stays in the checkpoint.
+
+        Call seed_all first. Convolution weights use Kaiming normal for ReLU.
+        Batch-norm starts at its identity statistics and is meant to keep updating.
+        """
+        for module in self.modules():
+            if isinstance(module, nn.Conv1d):
+                nn.init.kaiming_normal_(module.weight, nonlinearity='relu')
+                if module.bias is not None:
+                    nn.init.zeros_(module.bias)
+            elif isinstance(module, nn.BatchNorm1d):
+                module.reset_parameters()
+        return self
+
+    def set_rough_numbers(self, enabled):
+        """Fake-quantize conv weights and post-ReLU activations to signed int8.
+
+        Batch-norm stays in the graph. Off leaves the float forward unchanged.
+        """
+        self.rough_numbers = bool(enabled)
+        for block in self.blocks:
+            block.rough_numbers = self.rough_numbers
+        return self.rough_numbers
 
     def set_fast(self, fast):
         """Training speed path (train.py --fast-dwconv): the depthwise convs'
@@ -262,14 +318,16 @@ class QuartzNet(nn.Module):
     def forward(self, features, lengths):
         """features [B,64,T] -> log-probs [B,T',29], lengths [B]."""
         x = features
+        weight = fake_quant_signed_int8(self.head.weight) if self.rough_numbers else self.head.weight
         if self.fast and not torch.is_autocast_enabled(x.device.type):
             mask = _mask(lengths, x.shape[-1], x.device, torch.bool)
             for block in self.blocks:
                 x, lengths, mask = block.forward_fast(x, lengths, mask)
-            return self.head(x * mask).transpose(1, 2), lengths
+            logits = F.conv1d(x * mask, weight, self.head.bias)
+            return logits.transpose(1, 2), lengths
         for block in self.blocks:
             x, lengths = block(x, lengths)
-        logits = self.head(x * _mask(lengths, x.shape[-1], x.device))
+        logits = F.conv1d(x * _mask(lengths, x.shape[-1], x.device), weight, self.head.bias)
         return logits.transpose(1, 2), lengths
 
     # --- NeMo name mapping -------------------------------------------------

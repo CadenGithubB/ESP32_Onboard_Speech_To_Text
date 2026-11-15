@@ -11,6 +11,25 @@ inline constexpr size_t kSegmentSampleRate=16000;
 inline constexpr size_t kSegmentAnalysisSamples=160; // 10 ms, independent of push chunk size.
 inline constexpr size_t kSegmentMaximumSamples=20*kSegmentSampleRate;
 inline constexpr size_t kSegmentNoiseWindowFrames=500; // At most five seconds of 10 ms levels.
+// Pre-emphasis decision (decision_pre_emphasis != 0): frame energies are 10 ms
+// variances in (count/100)^2, i.e. 10^4 x count^2, for the raw signal and for
+// d[n] = 100 x[n] - C x[n-1]. Exact integers; no square root takes part in a decision.
+inline constexpr uint64_t kSegmentEnergyUnit=10000;
+inline constexpr uint32_t kSegmentGainOne=65536;               // Q16 energy gain 1.0
+inline constexpr uint32_t kSegmentGainMin=kSegmentGainOne/4;   // gain^2 >= 1/4
+inline constexpr uint32_t kSegmentGainMax=kSegmentGainOne*4096u; // gain^2 <= 4096
+// The ambient-matching gain compares the lower quartiles of the idle raw and
+// pre-emphasised energies, independent of noise_percentile (whose default 0,
+// the window minimum, would match two single quietest frames).
+inline constexpr uint8_t kDecisionGainPercentile=25;
+// A phrase held open for this many hard limits in a row with no raw frame at the
+// raw onset rule (>= the speech floor and the raw stop level) is treated as a
+// steady high-frequency source: both ambients are re-seeded from the window, as a
+// pause would, so the phrase can end. None of the bench recordings reaches it.
+inline constexpr uint8_t kDecisionReseedCuts=2;
+// Modulation gate (decision_modulation_ratio_pct): 500 ms of pre-emphasised frame
+// energies; the 10th and 90th percentiles are ranks 5 and 45 of the 50.
+inline constexpr uint8_t kDecisionModulationFrames=50;
 
 // Simple fixed/adaptive energy endpointing, not a neural voice-activity detector. All
 // durations are samples and must be multiples of the 10 ms analysis frame.
@@ -50,6 +69,45 @@ struct SegmenterConfig {
     // short reply is not held back by the minimum length. 0 keeps the strict
     // minimum length.
     size_t short_close_silence_samples=0;
+    // Opt-in, adaptive mode only: level-robust onset. 0 (default) keeps the raw
+    // RMS decision exactly. C in 1..100 adds a second level, the energy of the
+    // pre-emphasised signal d[n] = x[n] - (C/100) x[n-1], and a frame counts as
+    // onset/voiced when EITHER the raw energy or the pre-emphasised energy passes
+    // its rule (silent only when both are below their stop level). The fixed
+    // floors keep their raw-count meaning in the pre-emphasised domain through
+    // an ambient-matching gain, the ratio of the lower quartiles
+    // (kDecisionGainPercentile) of the raw and pre-emphasised energies over the
+    // last idle frames, re-learned on every calibration and idle frame, never
+    // while a phrase is open. Every comparison is exact 64-bit integer energy.
+    // Raw PCM delivered to consumers is never changed.
+    uint8_t decision_pre_emphasis=0;
+    // Percent applied to the learned ambient energy gain (25..400). 100 maps the
+    // floors at the ambient percentile itself; 150 reproduces the sensitivity of
+    // the HardwareOne 8 Nov judge on the bench recordings. Ignored when off.
+    uint16_t decision_gain_pct=100;
+    // Opt-in noise controls for the level-robust onset (ignored while
+    // decision_pre_emphasis is 0; with both at 0 the option behaves exactly as
+    // without them).
+    // Modulation gate: 0 = off; R in 101..1000 lets the pre-emphasised level
+    // vote (onset, voiced, not silent, quiet-cut carry) only while its last
+    // 500 ms is modulated, i.e. p90 > (R/100) x p10 of the frame RMS levels,
+    // compared exactly as energies: p90 x 10^4 > R^2 x max(p10, 1). Steady
+    // fans and hiss then leave the raw rule in charge (day-room babble only at
+    // ratio 300; night babble not at all). 300 (3.0, 9.5 dB) is the reference
+    // design's value. The window fills during
+    // calibration; until 50 frames are seen the pre path does not vote.
+    uint16_t decision_modulation_ratio_pct=0;
+    // Pre hold: a phrase only the pre-emphasised level opened is kept open by
+    // that level alone until the raw level reaches the raw onset rule by itself
+    // (>= the speech floor and the raw stop level); until then the raw level's
+    // voiced/not-silent votes and its quiet-cut carry are ignored. Without it,
+    // steady noise the raw floor never admits can be held open by raw energy
+    // merely above 4 x the raw ambient. The latch carries into the continuation
+    // after a hard limit only when the released part itself reached the raw
+    // rule (raw evidence in the current or the previous continuation), so a
+    // talker who reached the raw floor and then gives way to steady noise keeps
+    // raw votes for at most one more continuation. Reset when a phrase ends.
+    bool decision_pre_hold_requires_raw=false;
 };
 enum class SegmentEnd : uint8_t { Pause, HardLimit, SessionEnd };
 enum class SegmentStatus : uint8_t { Ok, Ready, Finished, InvalidArgument, NotInitialized, CounterOverflow };
@@ -94,6 +152,15 @@ public:
         noise_head_=noise_count_=0;current_rms_=noise_rms_=peak_rms_=0;
         threshold_rms_=config_.adaptive?config_.adaptive_speech_floor:config_.rms_threshold;
         std::memset(noise_window_,0,sizeof(noise_window_));
+        pre_prev_=pre_sum_=0;pre_square_=0;
+        dec_e_=raw_e_=amb_d_=amb_r_=peak_d_=peak_r_=0;
+        std::memset(raw_window_,0,sizeof(raw_window_));
+        std::memset(idle_d_,0,sizeof(idle_d_));std::memset(idle_r_,0,sizeof(idle_r_));idle_head_=idle_count_=0;
+        set_gain(kSegmentGainOne);
+        raw_onset_=false;dec_only_cuts_=0;
+        std::memset(mod_ring_,0,sizeof(mod_ring_));mod_head_=mod_count_=0;modulated_=raw_heard_=false;
+        thr_d_=thr_r_=0;
+        if(config_.decision_pre_emphasis) { thr_d_=onset_d_;thr_r_=raw_floor(config_.adaptive_speech_floor); }
     }
     uint64_t samples_seen() const { return seen_; }
     bool calibrated() const { return initialized_ && calibrated_; }
@@ -101,6 +168,22 @@ public:
     uint16_t noise_rms() const { return noise_rms_; }
     uint16_t threshold_rms() const { return threshold_rms_; }
     uint16_t peak_rms() const { return peak_rms_; }
+    // Pre-emphasis mode only (zero otherwise; gain 1.0 = 65536): the last frame's
+    // energies and the current ambient, threshold and gain, in kSegmentEnergyUnit
+    // units / Q16. Diagnostics: no decision reads them.
+    uint64_t decision_energy() const { return dec_e_; }
+    uint64_t decision_noise_energy() const { return amb_d_; }
+    uint64_t decision_threshold_energy() const { return thr_d_; }
+    uint64_t raw_energy() const { return raw_e_; }
+    uint64_t raw_threshold_energy() const { return thr_r_; }
+    uint32_t decision_gain_q16() const { return gain_q16_; }
+    // Noise controls (false while decision_pre_emphasis is 0): whether the
+    // pre-emphasised level may vote in the current frame (the modulation gate's
+    // state; true on every frame while the gate is off), and whether the raw
+    // level's votes count (its latch under the pre hold; see
+    // decision_pre_hold_requires_raw; false while the hold is off).
+    bool decision_modulated() const { return config_.decision_pre_emphasis && pre_votes(); }
+    bool decision_raw_heard() const { return raw_heard_; }
     const SpeechSegment* segment() const { return ready_?&segment_:nullptr; }
     // Live view of the utterance still being captured (pre-roll included),
     // for draft transcription. Valid only on the pushing thread, until the
@@ -159,6 +242,11 @@ public:
                 if(active_)buffer_[used_++]=sample;
                 else append_history(sample);
             }
+            if(config_.decision_pre_emphasis) {
+                // |d| <= 200 * 32768 < 2^23; a frame's sum < 2^31, its square sum < 2^53.
+                const int32_t d=100*int32_t(sample)-int32_t(config_.decision_pre_emphasis)*pre_prev_;
+                pre_prev_=sample;pre_sum_+=d;pre_square_+=static_cast<uint64_t>(static_cast<int64_t>(d)*d);
+            }
             ++seen_;++frame_count_;frame_sum_+=sample;
             frame_square_+=static_cast<uint64_t>(static_cast<int64_t>(sample)*sample);
             if(frame_count_==kSegmentAnalysisSamples) {
@@ -209,6 +297,7 @@ public:
             voiced_run_=0;voiced_end_abs_=0;
             reset_utterance_levels();
         }
+        if(config_.decision_pre_emphasis && segment_.end==SegmentEnd::HardLimit)after_hard_cut();
         segment_={};return true;
     }
 private:
@@ -233,7 +322,10 @@ private:
             && (!c.hard_cut_search_samples || !c.forced_overlap_samples)
             && aligned(c.short_close_silence_samples)
             && (!c.short_close_silence_samples || (c.short_close_silence_samples>=c.end_silence_samples
-                && c.short_close_silence_samples<=c.max_segment_samples));
+                && c.short_close_silence_samples<=c.max_segment_samples))
+            && c.decision_pre_emphasis<=100 && (!c.decision_pre_emphasis || c.adaptive)
+            && c.decision_gain_pct>=25 && c.decision_gain_pct<=400
+            && (!c.decision_modulation_ratio_pct || (c.decision_modulation_ratio_pct>100 && c.decision_modulation_ratio_pct<=1000));
     }
     size_t history_capacity() const { return config_.pre_roll_samples+kSegmentAnalysisSamples; }
     void append_history(int16_t sample) {
@@ -251,7 +343,7 @@ private:
         head_=history_=voice_=silence_=0;loud_run_=0;active_=true;continuation_=false;
     }
     bool eligible() const { return voice_>0 && (continuation_ || voice_>=config_.min_voice_samples); }
-    void clear_frame() { frame_count_=0;frame_sum_=0;frame_square_=0; }
+    void clear_frame() { frame_count_=0;frame_sum_=0;frame_square_=0;pre_sum_=0;pre_square_=0; }
     void evaluate_frame(bool finalizing) {
         const uint64_t n=frame_count_;
         const uint64_t centered=frame_square_*n-static_cast<uint64_t>(frame_sum_*frame_sum_);
@@ -259,7 +351,9 @@ private:
         // the fixed-mode comparison below retains its original exact arithmetic.
         current_rms_=integer_sqrt(static_cast<uint32_t>(centered/(n*n)));
         bool voiced=false, silent=false;
-        if(config_.adaptive) {
+        if(config_.decision_pre_emphasis) {
+            if(!decide_energy(centered,n,&voiced,&silent))return;
+        } else if(config_.adaptive) {
             const int32_t floor_before=noise_count_?noise_rms_:-1;
             const uint16_t window_min=(config_.freeze_noise_during_speech && active_) ?
                 noise_rms_ : track_noise(current_rms_);
@@ -364,6 +458,16 @@ private:
     }
     void reset_utterance_levels() {
         heard_speech_=false;peak_rms_=0;
+        if(config_.decision_pre_emphasis) {
+            peak_d_=peak_r_=0;raw_onset_=false;dec_only_cuts_=0;raw_heard_=false;
+            if(noise_count_) {
+                amb_d_=percentile_energy(noise_window_,noise_count_,config_.noise_percentile);
+                amb_r_=percentile_energy(raw_window_,noise_count_,config_.noise_percentile);
+            }
+            thr_d_=std::max(onset_d_,4*amb_d_);thr_r_=std::max(raw_floor(config_.adaptive_speech_floor),4*amb_r_);
+            publish_levels();
+            return;
+        }
         if(config_.adaptive) {
             if(noise_count_) {
                 noise_rms_=window_floor();
@@ -405,19 +509,200 @@ private:
         uint64_t best_energy=std::numeric_limits<uint64_t>::max();
         for(size_t at=first; at+F<=used_; at+=F) {
             if(!at)continue;  // never an empty phrase
-            const uint64_t e=frame_energy(at);
+            const uint64_t e=config_.decision_pre_emphasis?frame_energy_d(at):frame_energy(at);
             if(e<=best_energy) { best_energy=e; best=at; }
         }
         if(!best) { publish(SegmentEnd::HardLimit); return; }
         cut_=best;
         carry_voice_=0;
-        const uint64_t limit=uint64_t(threshold_rms_)*threshold_rms_*F*F;
-        for(size_t at=best; at+F<=used_; at+=F)
-            if(frame_energy(at)>=limit)carry_voice_+=F;
+        if(config_.decision_pre_emphasis) {
+            // Same units and thresholds as the streaming decision (defect (c)),
+            // and the same noise-control votes (both true while those are off).
+            const bool dec_votes=pre_votes(), raw_votes=raw_votes_count();
+            for(size_t at=best; at+F<=used_; at+=F)
+                if((dec_votes && frame_energy_d(at)/(F*F)>=thr_d_) ||
+                   (raw_votes && frame_energy(at)*kSegmentEnergyUnit/(F*F)>=thr_r_))carry_voice_+=F;
+        } else {
+            const uint64_t limit=uint64_t(threshold_rms_)*threshold_rms_*F*F;
+            for(size_t at=best; at+F<=used_; at+=F)
+                if(frame_energy(at)>=limit)carry_voice_+=F;
+        }
         segment_={buffer_,cut_,start_,start_+cut_,fresh_start_,static_cast<size_t>(fresh_start_-start_),
                   0,voice_,SegmentEnd::HardLimit,continuation_};
         segment_.voiced_end_samples=voiced_end(cut_);
         ready_=true;
+    }
+    // ---------------- pre-emphasis energy decision ----------------
+    // Monotone 16-bit code of an energy < 2^47: exact below 2048, else 6-bit
+    // exponent + 10 explicit mantissa bits (value() <= v < value()*(1+2^-10)).
+    static uint16_t energy_code(uint64_t v) {
+        if(v<1024)return static_cast<uint16_t>(v);
+        unsigned p;   // msb index (10..46)
+#if defined(__GNUC__) || defined(__clang__)
+        p=63u-static_cast<unsigned>(__builtin_clzll(v));
+#else
+        p=0; for(uint64_t t=v>>1;t;t>>=1)++p;
+#endif
+        return static_cast<uint16_t>(((p-9)<<10)|((v>>(p-10))&1023));
+    }
+    static uint64_t energy_value(uint16_t c) {
+        const unsigned e=c>>10, m=c&1023;
+        return e?(uint64_t(1024|m)<<(e-1)):m;
+    }
+    // Exact order statistic (rank count*pct/100, as window_floor) of a code
+    // window: two radix passes over the high and low byte, 512 bytes of stack.
+    static uint64_t percentile_energy(const uint16_t* w,size_t count,unsigned pct) {
+        const size_t rank=count*pct/100;
+        uint16_t bins[256];
+        std::memset(bins,0,sizeof(bins));
+        for(size_t i=0;i<count;++i)++bins[w[i]>>8];
+        size_t seen=0;unsigned hi=0;
+        for(;hi<255;++hi) { if(seen+bins[hi]>rank)break; seen+=bins[hi]; }
+        std::memset(bins,0,sizeof(bins));
+        for(size_t i=0;i<count;++i)if((w[i]>>8)==hi)++bins[w[i]&255];
+        unsigned lo=0;
+        for(;lo<255;++lo) { if(seen+bins[lo]>rank)break; seen+=bins[lo]; }
+        return energy_value(static_cast<uint16_t>((hi<<8)|lo));
+    }
+    static uint64_t raw_floor(uint64_t f) { return f*f*kSegmentEnergyUnit; }
+    // A raw floor F counts in decision energy: F^2 * 10^4 / gain (< 2^60 before the divide).
+    void set_gain(uint32_t g) {
+        gain_q16_=g;
+        onset_d_=(raw_floor(config_.adaptive_speech_floor)<<16)/g;
+        voiced_d_=(raw_floor(config_.adaptive_silence_floor)<<16)/g;
+    }
+    // gain = raw ambient / decision ambient over the idle frames (defect (b): re-learned on every idle frame).
+    void learn_gain() {
+        if(!idle_count_)return;
+        const uint64_t d=percentile_energy(idle_d_,idle_count_,kDecisionGainPercentile);
+        // A zero decision quartile carries no evidence about the room: keep the previous
+        // gain. (Mapping it to kSegmentGainMax let room tone open and hold phrases after
+        // digital silence; constant frames are now kept out of the window, so this is a guard.)
+        if(!d)return;
+        const uint64_t r=percentile_energy(idle_r_,idle_count_,kDecisionGainPercentile);
+        uint64_t g=(r<<16)/d;   // r < 2^44, so r<<16 < 2^60
+        if(g>kSegmentGainMax)g=kSegmentGainMax;
+        g=g*config_.decision_gain_pct/100;
+        const uint32_t next=static_cast<uint32_t>(std::min<uint64_t>(std::max<uint64_t>(g,kSegmentGainMin),kSegmentGainMax));
+        if(next!=gain_q16_)set_gain(next);
+    }
+    // After a hard-limit release (option on): see kDecisionReseedCuts. Keeps
+    // heard_speech_ and the gain; the phrase continues and may now end on a pause.
+    // A released part with no raw evidence also drops the pre hold's raw latch
+    // (no-op while the hold is off: raw_heard_ is then always false).
+    void after_hard_cut() {
+        if(!raw_onset_)raw_heard_=false;
+        if(raw_onset_)dec_only_cuts_=0;
+        else if(++dec_only_cuts_>=kDecisionReseedCuts) {
+            dec_only_cuts_=0;peak_d_=peak_r_=0;
+            if(noise_count_) {
+                amb_d_=percentile_energy(noise_window_,noise_count_,config_.noise_percentile);
+                amb_r_=percentile_energy(raw_window_,noise_count_,config_.noise_percentile);
+            }
+            thr_d_=std::max(voiced_d_,4*amb_d_);thr_r_=std::max(raw_floor(config_.adaptive_silence_floor),4*amb_r_);
+            publish_levels();
+        }
+        raw_onset_=false;
+    }
+    // Whether each level may vote in this frame (the noise controls; true while off).
+    bool pre_votes() const { return !config_.decision_modulation_ratio_pct || modulated_; }
+    bool raw_votes_count() const { return !config_.decision_pre_hold_requires_raw || raw_heard_; }
+    // Modulation gate, every frame (calibration, idle and active alike): ring of
+    // the last kDecisionModulationFrames pre-emphasised energy codes; modulated
+    // when p90 x 10^4 > R^2 x max(p10, 1), R = decision_modulation_ratio_pct.
+    // Order statistics by nth_element on a 100-byte stack copy; exact integer
+    // compare (p90 < 2^47, so p90 x 10^4 < 2^61; R^2 <= 10^6).
+    void track_modulation(uint16_t code) {
+        mod_ring_[mod_head_]=code;
+        mod_head_=static_cast<uint8_t>((mod_head_+1)%kDecisionModulationFrames);
+        if(mod_count_<kDecisionModulationFrames)++mod_count_;
+        if(mod_count_<kDecisionModulationFrames) { modulated_=false;return; }
+        constexpr size_t kLo=kDecisionModulationFrames/10, kHi=kDecisionModulationFrames*9/10;
+        uint16_t w[kDecisionModulationFrames];
+        std::memcpy(w,mod_ring_,sizeof(w));
+        std::nth_element(w,w+kHi,w+kDecisionModulationFrames);
+        std::nth_element(w,w+kLo,w+kHi);  // every element before kHi is <= w[kHi]
+        const uint64_t lo=std::max<uint64_t>(energy_value(w[kLo]),1), hi=energy_value(w[kHi]);
+        const uint64_t r2=uint64_t(config_.decision_modulation_ratio_pct)*config_.decision_modulation_ratio_pct;
+        // lo > hi x 10^4 / r2 (no overflow): then r2 x lo > hi x 10^4.
+        modulated_=lo<=hi*10000/r2 && hi*10000>r2*lo;
+    }
+    // Diagnostics only (UI and trace): raw-count views of the energy state.
+    static uint16_t energy_rms(uint64_t e) {
+        const uint64_t v=e/kSegmentEnergyUnit;
+        return integer_sqrt(static_cast<uint32_t>(std::min<uint64_t>(v,0xffffffffu)));
+    }
+    void publish_levels() {
+        noise_rms_=energy_rms(amb_r_);peak_rms_=energy_rms(peak_r_);
+        // Saturate before the multiply: min(.,2^35) x gain (< 2^29) stays below 2^64.
+        const uint64_t d_scaled=std::min<uint64_t>(thr_d_/kSegmentEnergyUnit,uint64_t(1)<<35);
+        const uint64_t d_as_raw=std::min<uint64_t>((d_scaled*gain_q16_)>>16,0xffffffffu);
+        threshold_rms_=std::min(energy_rms(thr_r_),integer_sqrt(static_cast<uint32_t>(d_as_raw)));
+    }
+    bool decide_energy(uint64_t centered,uint64_t n,bool* voiced,bool* silent) {
+        const uint64_t nn=n*n;
+        dec_e_=(pre_square_*n-static_cast<uint64_t>(static_cast<int64_t>(pre_sum_)*pre_sum_))/nn; // < 2^46
+        raw_e_=centered*kSegmentEnergyUnit/nn;                                                  // < 2^44
+        const bool seeded=noise_count_>0;
+        uint64_t wd=amb_d_, wr=amb_r_;
+        const uint16_t code_d=energy_code(dec_e_), code_r=energy_code(raw_e_);
+        if(config_.decision_modulation_ratio_pct)track_modulation(code_d);
+        if(!(config_.freeze_noise_during_speech && active_)) {
+            noise_window_[noise_head_]=code_d;raw_window_[noise_head_]=code_r;
+            noise_head_=(noise_head_+1)%config_.noise_window_frames;
+            if(noise_count_<config_.noise_window_frames)++noise_count_;
+            wd=percentile_energy(noise_window_,noise_count_,config_.noise_percentile);
+            wr=percentile_energy(raw_window_,noise_count_,config_.noise_percentile);
+        }
+        // Constant frames (digital silence, a muted input, DC) say nothing about the
+        // room's spectrum and stay out of the gain windows.
+        if((!calibrated_ || !active_) && raw_e_) {
+            idle_d_[idle_head_]=code_d;idle_r_[idle_head_]=code_r;
+            idle_head_=(idle_head_+1)%config_.noise_window_frames;
+            if(idle_count_<config_.noise_window_frames)++idle_count_;
+        }
+        const uint64_t sp_r=raw_floor(config_.adaptive_speech_floor), si_r=raw_floor(config_.adaptive_silence_floor);
+        if(!calibrated_) {
+            amb_d_=wd;amb_r_=wr;learn_gain();
+            calibration_seen_+=frame_count_;
+            if(calibration_seen_>=config_.calibration_samples)calibrated_=true;
+            thr_d_=std::max(onset_d_,4*amb_d_);thr_r_=std::max(sp_r,4*amb_r_);
+            publish_levels();
+            return false;
+        }
+        if(!active_ || wd<amb_d_)amb_d_=wd;
+        if(!active_ || wr<amb_r_)amb_r_=wr;
+        if(!active_)learn_gain();
+        if(!active_ || dec_e_>peak_d_)peak_d_=dec_e_;
+        if(!active_ || raw_e_>peak_r_)peak_r_=raw_e_;
+        // adaptiveVadDecision in energy units: 2 x floor -> 4 x, peak/8 -> peak/64.
+        const uint64_t trim_d=std::max(voiced_d_,4*amb_d_), stop_d=std::max(trim_d,peak_d_>>6);
+        const uint64_t trim_r=std::max(si_r,4*amb_r_), stop_r=std::max(trim_r,peak_r_>>6);
+        if(active_ && raw_e_>=std::max(stop_r,sp_r))raw_onset_=true;   // raw evidence in this phrase (kDecisionReseedCuts)
+        // Noise controls; both votes are true while their options are off.
+        if(config_.decision_pre_hold_requires_raw && seeded && raw_e_>=stop_r && raw_e_>=sp_r)raw_heard_=true;
+        const bool dv=pre_votes(), rv=raw_votes_count();
+        const bool latch=!heard_speech_ && seeded &&
+            ((dv && dec_e_>=stop_d && dec_e_>=onset_d_) || (raw_e_>=stop_r && raw_e_>=sp_r));
+        thr_d_=heard_speech_?stop_d:std::max(stop_d,onset_d_);
+        thr_r_=heard_speech_?stop_r:std::max(stop_r,sp_r);
+        heard_speech_=heard_speech_||latch;
+        *voiced=heard_speech_ && ((dv && dec_e_>=trim_d) || (rv && raw_e_>=trim_r));
+        *silent=heard_speech_ && (!dv || dec_e_<stop_d) && (!rv || raw_e_<stop_r);
+        publish_levels();
+        return true;
+    }
+    // n^2 * variance of d for one buffered frame (buffer_[at-1] precedes it, at >= 1):
+    // exactly the value the stream computed for that frame.
+    uint64_t frame_energy_d(size_t at) const {
+        int64_t sum=0; uint64_t square=0;
+        int32_t prev=buffer_[at-1];
+        for(size_t i=0;i<kSegmentAnalysisSamples;++i) {
+            const int32_t v=buffer_[at+i];
+            const int32_t d=100*v-int32_t(config_.decision_pre_emphasis)*prev; prev=v;
+            sum+=d; square+=static_cast<uint64_t>(static_cast<int64_t>(d)*d);
+        }
+        return square*kSegmentAnalysisSamples-static_cast<uint64_t>(sum*sum);
     }
     // n^2 * variance of one analysis frame (same scale as evaluate_frame).
     uint64_t frame_energy(size_t at) const {
@@ -454,6 +739,25 @@ private:
     size_t noise_head_=0,noise_count_=0,calibration_seen_=0;
     uint16_t current_rms_=0,noise_rms_=0,threshold_rms_=0,peak_rms_=0;
     bool calibrated_=false,heard_speech_=false;
+    // Pre-emphasis mode (decision_pre_emphasis != 0); untouched otherwise.
+    int32_t pre_prev_=0,pre_sum_=0;      // previous input sample (stream state), frame sum of d
+    uint64_t pre_square_=0;              // frame sum of d^2
+    uint64_t dec_e_=0,raw_e_=0;          // last frame's energies
+    uint64_t amb_d_=0,amb_r_=0;          // ambient (noise_percentile of the window), may only fall while active
+    uint64_t peak_d_=0,peak_r_=0;        // utterance peaks
+    uint64_t onset_d_=0,voiced_d_=0;     // speech/silence floors in decision energy
+    uint64_t thr_d_=0,thr_r_=0;          // current stop/onset threshold per domain (quiet-cut carry)
+    uint32_t gain_q16_=kSegmentGainOne;  // raw/decision ambient energy ratio, Q16
+    uint16_t raw_window_[kSegmentNoiseWindowFrames]{};  // noise_window_ holds decision codes
+    uint16_t idle_d_[kSegmentNoiseWindowFrames]{},idle_r_[kSegmentNoiseWindowFrames]{};
+    size_t idle_head_=0,idle_count_=0;
+    bool raw_onset_=false;              // a raw frame reached the raw onset rule since the last release
+    uint8_t dec_only_cuts_=0;           // consecutive hard limits without raw_onset_
+    // Noise controls (decision_modulation_ratio_pct, decision_pre_hold_requires_raw); untouched while off.
+    uint16_t mod_ring_[kDecisionModulationFrames]{};  // pre-emphasised energy codes, last 500 ms
+    uint8_t mod_head_=0,mod_count_=0;
+    bool modulated_=false;              // gate state for the current frame
+    bool raw_heard_=false;              // raw level met the raw onset rule in this or the previous continuation
     bool initialized_=false,active_=false,continuation_=false,ready_=false,finishing_=false,finished_=false;
 };
 } // namespace hw1::stt

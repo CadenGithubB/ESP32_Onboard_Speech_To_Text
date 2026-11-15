@@ -8,7 +8,9 @@ import argparse
 import json
 import random
 import hashlib
-from diagnostics import error_counts, summarize, paired_changes, atomic_json
+from diagnostics import (error_counts, summarize, paired_changes, atomic_json,
+                         condition_records, wer_difference_interval, format_wer, format_interval,
+                         condition_of)
 
 import numpy as np
 import torch
@@ -100,6 +102,7 @@ def main():
     else:
         model = QuartzNet(config).load_nemo(state).to(device).eval()
     results = evaluate_stores(model, state, [(s, a.limit) for s in a.sets], device, examples=a.examples)
+    previous = None
     if a.compare:
         previous = json.loads(open(a.compare).read())['results']
         if previous.keys() != results.keys():
@@ -107,10 +110,25 @@ def main():
         for name, r in results.items():
             r['paired'] = paired_changes(previous[name]['records'], r['records'])
     for name, r in results.items():
-        metric = f"WER {r['wer']*100:.1f}%" if r['wer'] is not None else f"phantom words/min {r['phantom_words_per_minute']:.2f}"
-        print(f"{name}: {metric} ({r['errors']}/{r['words']} words, {r['utterances']} utts)")
+        line = f"{name} [{condition_of(name)}]: {format_wer(r)} ({r['utterances']} utts)"
+        if r.get('paired'):
+            line += '  ' + format_interval(r['paired']['interval'])
+        print(line)
+    print('by condition:')
+    grouped = condition_records(results)
+    previous_grouped = condition_records(previous) if previous else {}
+    condition_report = {}
+    for name in sorted(grouped):
+        entry = summarize(grouped[name])
+        if name in previous_grouped:
+            entry['interval'] = wer_difference_interval(previous_grouped[name], grouped[name])
+        condition_report[name] = entry
+        line = f"  {name}: {format_wer(entry)}"
+        if 'interval' in entry:
+            line += '  ' + format_interval(entry['interval'])
+        print(line)
     if a.out:
-        atomic_json(a.out, {'ckpt': a.ckpt, 'results': results})
+        atomic_json(a.out, {'ckpt': a.ckpt, 'results': results, 'conditions': condition_report})
 
 
 if __name__ == '__main__':
