@@ -24,6 +24,8 @@ set(hw1_stt_srcs
     stt/stt_dl_metadata.cpp
     stt/stt_internal_memory.cpp
     stt/stt_stream.cpp
+    # Compile-time only: refuses a stt_model_identity.h packed for another frontend contract.
+    stt/stt_frontend_interlock.cpp
     System_MemUtil.cpp)
 if(HW1_STT_SPEAKER_LABELS)
     list(APPEND hw1_stt_srcs stt/speaker_frontend.cpp stt/speaker_model.cpp)

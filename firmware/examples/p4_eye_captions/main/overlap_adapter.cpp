@@ -81,8 +81,9 @@ void begin(size_t reserve) {
   }
   if (ok) {
     s->workspace = static_cast<FrontendWorkspace*>(sttPsramAlloc(sizeof(FrontendWorkspace), "stt.overlap"));
-    // Pad frames carry the raw log-mel of digital silence, log(2^-24): saturates to -128 at exponent -3.
-    s->silence = overlap::quantize_bin(std::log(std::ldexp(1.0f, -24)), s->gate.inputExponent());
+    // Pad frames carry the gate's raw log-mel of digital silence, log(kGateLogGuard = 2^-24): saturates
+    // to -128 at exponent -3. Same value to_gate_log_mel gives a silent recognizer row (mel = 0).
+    s->silence = overlap::quantize_bin(std::log(overlap::kGateLogGuard), s->gate.inputExponent());
     ok = s->workspace != nullptr;
   }
   if (ok)
@@ -149,12 +150,14 @@ void run(product::Receipt receipt, const StreamWork& work) {
         std::memset(row, s.silence, overlap::kMelBins);
       } else if (frame < cached) {
         const float* src = work.features.rows + frame * overlap::kMelBins;
-        for (size_t m = 0; m < overlap::kMelBins; ++m) row[m] = overlap::quantize_bin(src[m], exponent);
+        for (size_t m = 0; m < overlap::kMelBins; ++m)
+          row[m] = overlap::quantize_bin(overlap::to_gate_log_mel(src[m], kLogGuard), exponent);
       } else {
         float raw[overlap::kMelBins];
         if (log_mel_frame(work.pcm, work.samples, frame, raw, s.workspace) != Status::Ok) { ok = false; break; }
         ++tail;
-        for (size_t m = 0; m < overlap::kMelBins; ++m) row[m] = overlap::quantize_bin(raw[m], exponent);
+        for (size_t m = 0; m < overlap::kMelBins; ++m)
+          row[m] = overlap::quantize_bin(overlap::to_gate_log_mel(raw[m], kLogGuard), exponent);
       }
     }
     if (!ok) break;

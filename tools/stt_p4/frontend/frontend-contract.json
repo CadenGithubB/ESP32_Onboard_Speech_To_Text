@@ -32,12 +32,12 @@
   },
   "mel": {
     "bins": 64,
-    "log_guard": 5.960464477539063e-08,
+    "log_guard": 9.313225746154785e-10,
     "power": 2,
     "source": "checkpoint",
     "sparse_nonzero": 498
   },
-  "name": "hw1-quartznet5x5ls-en-frontend-v1",
+  "name": "hw1-quartznet5x5ls-en-frontend-v2",
   "output": {
     "dtype": "float32",
     "frames": "ceil(samples/160)",
@@ -50,9 +50,9 @@
   "source_sha256": {
     "constants-manifest.json": "926d1b0057ee0694f4e895f2894a001d80eb49dd9dd4920d542d9c7ddff97653",
     "quartznet_constants.h": "a77794cca23f329cccc5e8bc7176a20aed6e1412190586bf218f1ab46d602239",
-    "quartznet_frontend.cpp": "2fc57170be79a7ea0986df74469f73a226133bbcbcc5051243c9c2c7a9be4f84",
-    "quartznet_frontend.h": "262ab1adc28346294d77bfafa11c28ce2fcd78a45c240cbaebed21b072109acb",
-    "reference_frontend.py": "1858f72b50380e622d0956e5789ca648e02b4cdff5a89477cd4f81a1f4c1316d"
+    "quartznet_frontend.cpp": "b4a5e573372ef2c902172c35d9c13a54d033de57724d88a4c18ff601ab4eb16f",
+    "quartznet_frontend.h": "a8acdce31263f8d8788f2c8225527be6c99a0be84e2e5710eeee83ec4aa8ea6b",
+    "reference_frontend.py": "a2fd241e698f6fdc55d5fcbca2c585c125a5d2e0bf4efba96e0e2f649a3eb55c"
   },
   "stft": {
     "center": true,

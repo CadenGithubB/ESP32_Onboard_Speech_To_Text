@@ -5,6 +5,9 @@ import torch
 
 DITHER_SEED = 0x12345678
 MAX_SAMPLES = 480000
+# log(mel + LOG_GUARD) on int16/32768 audio; equals quartznet_frontend.h kLogGuard. 2^-30 = 2^-24/64:
+# after per-bin CMVN, the trained 2^-24 guard on audio x8 louder, without clipping (P4 microphone level).
+LOG_GUARD = 2**-30
 
 def portable_dither(count, seed=DITHER_SEED):
     """Unit Gaussian float32 values; reset only at an utterance boundary."""
@@ -46,7 +49,7 @@ def features_float(samples, state, seed=DITHER_SEED, dither=True):
                          window=state['preprocessor.featurizer.window'],
                          center=True, return_complex=True)
     mel = torch.matmul(state['preprocessor.featurizer.fb'], spectrum.abs().square())
-    features = torch.log(mel + 2**-24)[:, :, :valid]
+    features = torch.log(mel + LOG_GUARD)[:, :, :valid]
     # Stable reduction: float32 reductions can shift silent-bin means by one ULP.
     # Preserve unbiased sample variance, but accumulate in float64 on every host.
     precise = features.double()

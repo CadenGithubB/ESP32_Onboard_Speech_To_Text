@@ -10,8 +10,8 @@ is not chosen and not included.
   trainer changes used for the 1000-h and 2000-h runs, the Piper tech-speech generator, and the documents below.
 - Not in 3.1: the recognizer log guard `2^-30` and the build interlock. They only build with a model exported
   for that frontend, and the only such packages are Voice Model 3 candidates, so they wait on branch
-  `voice-model-3-frontend` (`docs/STT_FRONTEND_GUARD.md`, `docs/STT_LOG_GUARD.md` there). Sections below that
-  describe change 3 refer to that branch.
+  `voice-model-3-frontend`. **This branch adds them** (`docs/STT_FRONTEND_GUARD.md`, `docs/STT_LOG_GUARD.md`).
+  It does not build for the P4 until a `-g30` package's `stt_model_identity.h` and `kModelPath` are installed.
 - Voice Model 3 candidates (Audiodrive `stt/work/release/`, none run on a P4). Device int8 + `meeting.lm`,
   errors on fresh confirm-2 clips (300 per set): v2 2,050; `voice-model-v3` (25397 re-exported with mse)
   1,952; `-1000h` 1,861; `-2000h` 1,756; `-blend` (2000-h with 30% NVIDIA) 1,714 (`blend-nv/DEVICE.md`).
@@ -2235,3 +2235,42 @@ About 13,000 of the 21,000 night-1 errors through the P4 are deletions, about 34
 The 4 November full-encoder checkpoint (update 1024) re-exported with mse scores 1,886 on the fresh clips (v3 1,937). It was rejected on 4 November for overlap deletions, the release suite and the four physical setups. Those were measured with `kl`, and none has been rerun with mse.
 
 Before either larger model replaces v3, run the release suite, overlap deletions, the four physical setups and the false-caption playlist on the P4. Nothing in this section was measured on hardware.
+
+## Recognizer log guard 2^-30, 12 November 2026
+
+The recognizer front end now uses `log(mel + 2^-30)` instead of `2^-24`. There is one device constant,
+`quartznet_frontend.h` `kLogGuard`, and the Python reference uses `LOG_GUARD`. After per-bin CMVN this equals
+x8 gain with no clipping, which lifts the P4 mic's -61 dBFS speech off the guard. The frontend contract
+`hw1-quartznet5x5ls-en-frontend-v2` has identity `b21a8eeca826691406afbd096423429f2bd0fba8ea93032336368b77ef93dcc7`.
+
+The overlap gate keeps its trained `2^-24` rows through `overlap_rule.h` `to_gate_log_mel`. The speaker
+front end, the segmenter, the weights and training are unchanged.
+
+Host proof with real C++ binaries on 20 night-1 P4 segments and 20 normal-level clips:
+- Raw rows equal old-guard rows of x8 audio to 9.7e-7, on every frame whose samples do not clip.
+- CMVN features agree to 6.4e-6.
+- The gate's converted rows differ in 3 of 1,460,480 int8 values.
+
+All frontend, feature-cache, container and gate host tests pass. The details, the tests that were not run and
+the open steps are in `docs/STT_LOG_GUARD.md`.
+
+Repacked the same day (`docs/STT_FRONTEND_GUARD.md`): `release/voice-model-v3-blend-g30` and
+`release/voice-model-v3-2000h-g30`, same weights and v3 recipe, calibrated on `2^-30` features, frontend
+`b21a8eec…`, exponents -3/-1. A build-time interlock (`stt_frontend_interlock.cpp`, generated
+`quartznet_frontend_contract.h`) now stops the firmware compiling while `stt_model_identity.h` pins another
+frontend, so this tree does not build for the P4 until a `-g30` identity header and `kModelPath` are installed
+(a model switch that needs the user's go-ahead).
+
+Night-1 P4 replay of the blend-g30 export (2^-30 C++ frontend, no dither, same segments): 54.01% -> 50.59% WER
+with the device LM, deletions 12,966 -> 11,819, no words on noise clips. confirm-1 (900 normal-level clips, stock
+dithered recipe): 1,737 -> 1,727 LM errors, so no normal-level regression.
+
+Noise-file check (12 Nov 20:42, package `noise-check.log`): 200 MUSAN/DEMAND chunks, LM 155 words in 22 chunks,
+greedy 216 in 19 (v3 blend: 143 / 22, 227 / 19): the same number of chunks fire (which chunks is not recorded). Board recordings with the onset, x8 gain on
+the recognizer input only (equal to the `2^-30` guard on the deployed gen2-25397 calibration, not the blend-g30
+package; 0 clipped samples): ee4c 52.50 -> 52.71, 076a 45.21 -> 43.65, nb1 26.79 -> 25.55, close 21.18 -> 19.57,
+1,103 -> 1,080 errors; with option 0 1,568 -> 1,574.
+
+Still open: the 2000h-g30 package is unscored; the blend-g30 package itself is not scored on the board
+recordings, confirm-2, tech set or LibriSpeech; the ESP-IDF build compiles (13 Nov, see the top section) but no P4 self-test, timing or live-talker test;
+training stays at `2^-24`.

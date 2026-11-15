@@ -4,7 +4,7 @@
 #include <cstring>
 namespace hw1::stt {
 namespace {
-constexpr float kPreemphasis=0.97f, kDither=1e-5f, kLogGuard=0x1p-24f;
+constexpr float kPreemphasis=0.97f, kDither=1e-5f;  // kLogGuard: quartznet_frontend.h
 struct Gaussian {
     uint32_t state;
     float spare=0;

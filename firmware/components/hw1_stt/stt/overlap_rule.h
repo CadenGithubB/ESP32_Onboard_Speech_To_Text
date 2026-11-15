@@ -75,6 +75,20 @@ class Accumulator {
     bool overflow_ = false;
 };
 
+// The gate was trained on raw (non-CMVN) log(mel + 2^-24) rows: tools/overlap_gate/g2_common.py
+// RawFrontend, silence constant log(2^-24) (phase4/silence-constant.json). The recognizer rows it
+// reads (stream cache and log_mel_frame) use the recognizer's guard (quartznet_frontend.h
+// kLogGuard, 2^-30), so each value is converted back before quantize_bin. Without the gate's own
+// CMVN a guard change is not a constant offset, and the gate model is not retrained for it.
+inline constexpr float kGateLogGuard = 0x1p-24f;
+
+// log(mel + row_guard) -> log(mel + kGateLogGuard). Identity when the guards agree; otherwise one
+// expf and one logf. Float error about 2e-6 nat, far below the 1/8 nat int8 step at exponent -3.
+inline float to_gate_log_mel(float value, float row_guard) {
+    if (row_guard == kGateLogGuard) return value;
+    return std::log(std::exp(value) + (kGateLogGuard - row_guard));
+}
+
 // int8 value a raw log-mel bin takes at scale 2^exponent, as the model input expects.
 inline int8_t quantize_bin(float value, int exponent) {
     const float v = std::nearbyint(value * std::ldexp(1.0f, -exponent));
