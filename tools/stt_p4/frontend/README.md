@@ -1,6 +1,6 @@
 # Portable QuartzNet frontend and CTC
 
-The single C++17 implementation lives in `components/hardwareone/stt/`.
+The single C++17 implementation lives in `firmware/components/hw1_stt/stt/`.
 The experiment probe and host tests compile those production files directly;
 this folder contains references, generators, and tests only. The implementation converts **raw mono 16 kHz int16 PCM** into contiguous
 float32 `[T,64]` features. `T = ceil(samples/160)`, without padded frames; the
@@ -24,7 +24,14 @@ clipping chain. PCM scaling here is exactly `int16 / 32768`.
 The frontend applies deterministic Gaussian dither at amplitude `1e-5`, then
 pre-emphasis `0.97` exactly once; centered reflect-padded FFT 512, hop 160,
 checkpoint Hann window 320; squared magnitude, checkpoint mel filters, and
-`log(mel + 2^-24)`. Dither resets to `0x12345678` at each utterance. Its generator
+`log(mel + 2^-30)` (`kLogGuard` in `quartznet_frontend.h`, `LOG_GUARD` in the
+reference; `contract.py` refuses to write a contract unless both equal its
+`log_guard`). Until 12 November 2026 the guard was `2^-24`, the value the models
+were trained with. Per-bin CMVN removes the constant `2 log 8`, so `2^-30` gives
+the recognizer exactly what `2^-24` gave on the same audio 8 times louder, with
+no clipping and no change to the int16 samples, segmenter or speaker path
+(`docs/STT_LOG_GUARD.md`). The overlap gate was trained on raw `2^-24` rows and
+converts each row back (`overlap_rule.h` `to_gate_log_mel`). Dither resets to `0x12345678` at each utterance. Its generator
 is xorshift32 followed by Box–Muller; the exact float32 operations and uniform
 mapping appear in the C++ and independent Python reference. This deliberately
 does not reproduce Torch's RNG. C/C++ math-library last-bit variation remains
@@ -46,8 +53,24 @@ the original basename keys, so deduplication does not change the model identity.
 SHA256 is the frontend identity carried in the model envelope:
 
 ```
-ca91eb9683f7151b8be1a01532a6790c6eb7d515f67169a207751e3fc48cc58b
+b21a8eeca826691406afbd096423429f2bd0fba8ea93032336368b77ef93dcc7
 ```
+
+That is contract `hw1-quartznet5x5ls-en-frontend-v2` (log guard `2^-30`). The
+`2^-24` contract was `ca91eb9683f7151b8be1a01532a6790c6eb7d515f67169a207751e3fc48cc58b`.
+Its recorded C++ hashes had gone stale (`2fc57170…`/`262ab1ad…` against the files'
+`09073499…`/`8ef041c8…`) because `contract.py` still pointed at HardwareOne's
+`components/hardwareone/stt`. Models exported against `ca91eb96…`, including
+v2 `gen2-25397` and the v3 packages, are refused by a firmware whose
+`stt_model_identity.h` pins `b21a8eec…`. The other way round is checked at
+build time: `contract.py` also writes
+`firmware/components/hw1_stt/stt/quartznet_frontend_contract.h` (the contract
+SHA-256 and the guard; not one of the hashed sources), and
+`stt_frontend_interlock.cpp` (compiled only in the ESP-IDF component) fails with
+a `static_assert` unless `stt_model_identity.h` `kFrontendSha` equals that SHA and
+`kLogGuard` equals the generated guard. `contract.py --check` fails when the
+generated header is stale, warns when `stt_model_identity.h` pins another
+contract, and `--identity` makes that an error.
 
 `ctc_feed` accepts float32 or common-scale int8 scores in `[frames,29]` order.
 It uses first-index argmax ties, blank 28, and vocabulary space + a–z + apostrophe.
@@ -65,20 +88,45 @@ in these commands. The exact checkpoint and public fixture provenance are in
 `experiments/speech_portable/float_quartznet.py` and the constants manifest.
 
 ```sh
-python3 experiments/stt_p4/frontend/contract.py --check
-python3 experiments/stt_p4/frontend/test_model_container.py
-experiments/speech_portable/private/stt-quartznet/venv/bin/python experiments/stt_p4/frontend/export_constants.py --check
-experiments/speech_portable/private/stt-quartznet/venv/bin/python experiments/stt_p4/frontend/test_frontend.py --sanitize
-experiments/speech_portable/private/stt-quartznet/venv/bin/python experiments/stt_p4/frontend/test_runtime_quantization.py
-experiments/speech_portable/private/stt-quartznet/venv/bin/python experiments/stt_p4/frontend/test_transcripts.py
+python3 tools/stt_p4/frontend/contract.py --check            # add --identity once a matching package header is installed
+$PY tools/stt_p4/frontend/test_model_container.py --model <package>.p4.stt   # must match stt_model_identity.h
+$PY tools/stt_p4/frontend/test_frontend.py --sanitize --fixtures <checkpoint>/fixtures
+$PY tools/stt_p4/frontend/test_runtime_quantization.py
+# These two need the pinned 5x5 checkpoint in tools/speech_portable/private/stt-quartznet:
+$PY tools/stt_p4/frontend/export_constants.py --check
+$PY tools/stt_p4/frontend/test_transcripts.py   # compares with speech_portable's 2^-24 Torch decoder
 ```
+
+`$PY` is an environment with torch, numpy and soundfile (for example the export venv).
+`test_frontend.py` now builds the reference window and mel filters from the
+compiled `quartznet_constants.h`, verified against the pinned checkpoint tensor
+hashes in `constants-manifest.json`, so it needs only the two public speech
+clips. The v3 checkpoints' own window differs from the pinned one by up to
+`6e-8`. Export calibration uses the checkpoint window and the device uses the
+pinned one; that difference was there before the guard change.
 
 Results and generated feature/PCM fixtures stay in ignored
 `experiments/stt_p4/private/frontend/`. The quantizer test extracts and compiles
 the actual runtime rounding loop; it tests negative and positive half-ties,
 adjacent representable values, saturation, and both speech feature buffers.
 
-Host checks on 2026-09-28 passed with ASan/UBSan:
+Host checks on 2026-11-12, guard `2^-30`, ASan/UBSan, fixtures from
+`blend-nv/t2000-b70/fixtures`:
+
+- Speech and broadband fixtures stay within `6e-4` max / `2e-5` mean, and
+  their int8 inputs at exponent -3 are identical. Speech `0`: max `1.98e-5`.
+  Speech `1`: max `1.54e-4`, mean `3.4e-7`.
+- Two floor-dominated fixtures now exceed `6e-4`. Dithered `silence1600` reaches
+  max `3.44e-3`, and `sine480000` reaches max `2.05e-3` / mean `1.1e-4`, with
+  154 of 192,000 int8 values different. At `2^-24` they had max `2.4e-7` and
+  `4.5e-4`, with 19 int8 differences. On the tone, the C++ and Torch float32
+  frontends each differ from a float64 frontend by up to about `4e-3` at
+  `2^-30`. The lower guard no longer hides float32 FFT rounding in cells far
+  below the frame peak. These fixtures, `silence*`, `near_silence1601` and
+  `sine480000`, get their own limits: `5e-3` max, `2e-4` mean, and at most 0.2%
+  of int8 inputs different.
+
+Host checks on 2026-09-28, guard `2^-24`, passed with ASan/UBSan:
 
 - Nine frontend fixtures: silence, near-silence, impulses, short random inputs,
   a full 30-second sinusoid, and both public speech clips. Maximum error across

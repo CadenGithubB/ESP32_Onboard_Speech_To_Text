@@ -106,7 +106,9 @@ def main():
 
     def both(x):
         q = rec.logits(x)
-        return greedy(q), hw1lm.decode_int8(q, rec.exponent, lm)
+        # hw1lm dequantises as q * 2^-exponent; rec.exponent is the ESP-DL tensor exponent (-1), so negate it
+        # (as release_benchmark.recognize does). Before 10 Nov 2026 the LM saw logits 4x too large.
+        return greedy(q), hw1lm.decode_int8(q, -rec.exponent, lm)
     rows, checks = [], []
     rng = random.Random(7)
     for night, cfg in NIGHTS.items():

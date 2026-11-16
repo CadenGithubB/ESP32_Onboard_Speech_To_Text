@@ -3,6 +3,7 @@
 // into chunks of 100 frames, prints "frames marked fraction flag" for tests/test_overlap_rule.py to
 // compare against the Python reference used for the host scores.
 #include "stt/overlap_rule.h"
+#include <algorithm>
 #include <cassert>
 #include <cmath>
 #include <cstdio>
@@ -48,6 +49,37 @@ static void constructed() {
     // Quantization of the silence constant saturates to -128 at exponent -3.
     assert(quantize_bin(std::log(std::ldexp(1.0f, -24)), -3) == -128);
     assert(quantize_bin(0.0f, -3) == 0 && quantize_bin(-1.0f, -3) == -8 && quantize_bin(20.0f, -3) == 127);
+    // The recognizer's 2^-30 silence also saturates, and the gate pad uses its own trained guard.
+    assert(quantize_bin(std::log(std::ldexp(1.0f, -30)), -3) == -128);
+    assert(kGateLogGuard == std::ldexp(1.0f, -24));
+    assert(quantize_bin(std::log(kGateLogGuard), -3) == -128);
+    // Recognizer rows log(mel + 2^-30) converted back to the gate's trained log(mel + 2^-24), with
+    // mel swept log-uniformly over 1e-14..1e3 (beyond what int16 audio produces), computed with the
+    // frontend's float operations: float error <= 4e-6 nat; int8 identical except where the 2^-24
+    // value lies within that error of a rounding boundary (x.5 steps of 1/8).
+    {
+        const float g30 = std::ldexp(1.0f, -30);
+        assert(to_gate_log_mel(1.25f, kGateLogGuard) == 1.25f);  // identity when the guards agree
+        assert(to_gate_log_mel(std::log(g30), g30) == std::log(kGateLogGuard));  // mel = 0
+        size_t cells = 0, ties = 0;
+        float worst = 0;
+        for (int i = 0; i <= 400000; ++i) {
+            const float mel = float(std::pow(10.0, -14.0 + 17.0 * i / 400000.0));
+            const float r24 = std::log(mel + kGateLogGuard), r30 = std::log(mel + g30);
+            const float back = to_gate_log_mel(r30, g30);
+            const float err = std::fabs(back - r24);
+            worst = std::max(worst, err);
+            assert(err <= 4e-6f);
+            const float scaled = r24 * 8.0f, frac = scaled - std::floor(scaled);
+            if (quantize_bin(back, -3) != quantize_bin(r24, -3)) {
+                assert(std::fabs(frac - 0.5f) <= 8.0f * 4e-6f);
+                ++ties;
+            }
+            ++cells;
+        }
+        std::printf("gate guard conversion: %zu cells, max error %.3g nat, %zu int8 rounding-tie flips\n", cells,
+                    double(worst), ties);
+    }
     std::puts("constructed cases ok");
 }
 

@@ -4,6 +4,12 @@
 namespace hw1::stt {
 inline constexpr size_t kSampleRate=16000, kMelBins=64, kMinSamples=320, kMaxSamples=480000;
 inline constexpr uint32_t kDitherSeed=0x12345678;
+// Recognizer log-mel guard: rows are log(mel + kLogGuard) on int16/32768 audio.
+// 2^-30 = 2^-24/64: after per-bin CMVN this equals the trained 2^-24 guard on
+// audio x8 louder, without clipping (the P4 microphone delivers speech near
+// -61 dBFS). Pinned as mel.log_guard in tools/stt_p4/frontend/frontend-contract.json.
+// The overlap gate keeps its trained 2^-24 rows (overlap_rule.h to_gate_log_mel).
+inline constexpr float kLogGuard=0x1p-30f;
 enum class Status : uint8_t { Ok, InvalidArgument, OutputTooSmall, NonFinite, AlreadyFinished };
 // All workspace is caller-owned. No heap allocation, microphone or filesystem calls.
 // One Workspace may be reused serially, never shared between simultaneous calls.

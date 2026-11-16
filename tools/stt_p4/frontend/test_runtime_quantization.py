@@ -13,9 +13,9 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output',type=Path,default=HERE.parent/'private/frontend')
     args=parser.parse_args()
-    source=(HERE.parents[2]/'components/hardwareone/stt/quartznet_runtime.cpp').read_text()
+    source=(HERE.parents[2]/'firmware/components/hw1_stt/stt/quartznet_runtime.cpp').read_text()
     start=source.index('        const float scale=')
-    end=source.index('\n    }\n    stats.frontendMs',start)
+    end=source.index('\n        stats.quantizeUs',start)
     actual=source[start:end].replace('identity::kInputExponent','exponent').replace('frames*64','count')
     # Only the two names above are adapted; the rounding/saturation body is compiled unchanged.
     program='''#include <algorithm>

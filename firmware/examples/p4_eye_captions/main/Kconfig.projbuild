@@ -37,6 +37,46 @@ config CAPTIONS_X2F_DRAFT_PACING
         at least 600 ms of new audio or twice the previous draft compute time.
         A new phrase does not inherit a slow previous phrase's draft delay.
         Requires standalone device latency/accuracy qualification.
+config CAPTIONS_DECISION_PRE_EMPHASIS
+    bool "Level-robust phrase onset (pre-emphasised decision, room-matched)"
+    default y
+    help
+        Phrases may also open and stay open on the level of the pre-emphasised
+        signal x[n] - 0.97 x[n-1], scaled to the room's ambient by a gain the
+        segmenter re-learns on every idle frame (150 percent). This matches the
+        spectral tilt between room tone and speech, so far or quiet speech whose
+        raw level sits at the fixed 45-count floor is found; the 45/16 floors
+        still bound it, so speech a few dB quieter again is missed. Only the
+        segmentation decision changes: the audio given to the recognizer is
+        unchanged. Host replay of P4 bench recordings (deployed model +
+        meeting.lm): WER 74.58 -> 52.50 % and 71.25 -> 45.21 % on the far
+        recordings (56.67 -> 43.44 % on one taken at PDM x8 / 120 Hz),
+        28.35 -> 26.79 % on the noise playlist, 20.64 -> 21.18 % up close.
+        It opens more and longer segments on background speech and noise
+        (noise playlist: 32 -> 184 s of 190 s inside phrases, false words on
+        noise 4 -> 8, in 2 -> 4 segments) and sends 2.2-2.7x the audio to
+        the recognizer.
+        Not qualified on the device.
+        Choose n (or add sdkconfig.prev_onset) to restore the previous detector
+        exactly, e.g. to reproduce device results recorded before 12 Nov 2026.
+config CAPTIONS_DECISION_MODULATION_GATE
+    bool "Level-robust onset: noisy-room mode (modulation gate, raw-latch hold)"
+    depends on CAPTIONS_DECISION_PRE_EMPHASIS
+    default n
+    help
+        Noisy-room mode: trades far and quiet speech for less noise inside
+        phrases. The pre-emphasised level may open or hold a phrase only while
+        its last 500 ms is modulated (90th percentile frame level above 3.0 x
+        the 10th), so steady fans and hiss leave the raw rule in charge; and a
+        phrase that only the pre-emphasised level opened is held open by that
+        level alone until the raw level reaches the raw onset rule by itself.
+        Host replay of the P4 bench recordings (deployed model + meeting.lm):
+        noise inside phrases 31-46 s -> 3-9 s per day recording and 184 -> 66 s
+        on the noise playlist, but WER 52.50 -> 61.25 %, 45.21 -> 46.56 % and
+        43.44 -> 44.79 % on the three day recordings scored, with no fewer
+        false words on noise; steady night babble is not reduced at all, and
+        a talker under bursty noise loses 14-21 s more speech. Not qualified
+        on the device. Off (n) keeps the onset above bit-for-bit.
 config CAPTIONS_TRIM_SILENCE
     bool "Retain 500 ms of trailing silence (requires audio qualification)"
     default n

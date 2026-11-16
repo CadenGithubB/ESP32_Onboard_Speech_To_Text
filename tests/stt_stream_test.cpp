@@ -9,6 +9,8 @@
 #include <atomic>
 #include <cstdlib>
 #include <new>
+#include <cmath>
+#include <random>
 using namespace hw1::stt;
 namespace {
 thread_local bool watch_allocations=false;
@@ -310,4 +312,55 @@ void concurrent_ownership(DraftPacing pacing=DraftPacing::Legacy,bool clearPrefi
     producer.join();features.join();assert(finals>0);
     assert(finals+f.pipeline.counters().dropped==30);
 }
-int main(){committed_prefix_clearing();tagged_lock_contract();metrics_accounting();draft_pacing_and_phrase_reset();concurrent_ownership();concurrent_ownership(DraftPacing::X2FastFirst);concurrent_ownership(DraftPacing::Legacy,true);concurrent_ownership(DraftPacing::X2FastFirst,true);features_and_draft_preemption();features_and_draft_preemption(DraftPacing::X2FastFirst);exact_promotion_and_resumed_speech();hard_cut_finish_and_cancel();queue_overflow_and_stale_features();puts("Streaming: bit-exact cached features, draft preemption, exact promotion, resumed speech, hard cuts, stop/cancel, overflow and stale generations passed");}
+// The example's adaptive segmentation with the level-robust onset (decision_pre_emphasis=97,
+// gain 150), scaled to a 2 s phrase: a sub-floor HF talker opens phrases only with the option
+// on and runs past the limit, so quiet-cut continuations reach drafts, cached features and
+// finals. Every cached row must equal the batch frontend and every final the source samples.
+void decision_onset_pipeline(){
+    std::mt19937 rng(12);std::normal_distribution<double> n01(0,1);double r=0,b1=0,b2=0;
+    std::vector<int16_t> x;
+    auto add=[&](size_t n,double talker){for(size_t i=0;i<n;++i){
+        r=0.97*r+5*0.35*n01(rng);double v=r+0.9*n01(rng);
+        if(talker){const double y=n01(rng)+b1-0.81*b2;b2=b1;b1=y;v+=talker*0.33*y;}
+        x.push_back(int16_t(std::lround(std::max(-32768.0,std::min(32767.0,v)))));}};
+    add(24000,0);add(88000,35);add(32000,0);add(16000,35);add(40000,0);
+    size_t finals_by_mode[2]={0,0};
+    for(bool on:{false,true}){
+        StreamConfig c;auto& s=c.segmentation;s.adaptive=true;s.max_segment_samples=32000;s.min_segment_samples=16000;
+        s.short_close_silence_samples=16000;s.noise_percentile=25;s.silence_blip_samples=480;s.hard_cut_search_samples=16000;
+        if(on){s.decision_pre_emphasis=97;s.decision_gain_pct=150;}
+        c.draft_interval_ms=0;
+        std::vector<int16_t> capture(32000),snapshot(32000),slots[3]={capture,capture,capture},ring(65536);
+        std::vector<float> rows[2]={std::vector<float>(200*64),std::vector<float>(200*64)};
+        StreamBuffers b;b.capacity=32000;b.capture=capture.data();b.snapshot=snapshot.data();
+        for(int i=0;i<3;++i)b.slots[i]=slots[i].data();
+        StreamPipeline p;assert(p.begin(c,b));assert(p.enableFeatures(ring.data(),ring.size(),rows[0].data(),rows[1].data()));
+        FrontendWorkspace ws{};float row[64];uint32_t now=0;size_t finals=0,hard=0,drafts=0,checked_rows=0;
+        auto drain=[&]{
+            StreamFeatureWork f;
+            while(p.featureTake(f)){assert(log_mel_frame_ring(f.ring,511,f.start,f.samples,f.frame,row,&ws)==Status::Ok);p.featureComplete(f,row,true);}
+            StreamWork w;
+            while(p.take(w,now)){
+                for(size_t n=0;n<w.features.count;++n){
+                    assert(log_mel_frame(w.pcm,w.samples,n,row,&ws)==Status::Ok);
+                    assert(!std::memcmp(row,w.features.rows+n*64,sizeof(row)));++checked_rows;
+                }
+                if(w.kind==StreamWorkKind::Final){
+                    assert(w.start_sample+w.samples<=x.size());
+                    for(size_t i=0;i<w.samples;++i)assert(w.pcm[i]==x[w.start_sample+i]);
+                    ++finals;hard+=w.hard_limit;
+                }else ++drafts;
+                p.complete(w,true,"words",{},100);
+            }
+        };
+        for(size_t at=0;at<x.size();at+=160){now+=10;assert(p.push(x.data()+at,std::min<size_t>(160,x.size()-at),now));drain();}
+        assert(p.finish(now));drain();
+        assert(p.counters().dropped==0);
+        if(on)assert(finals>=3&&hard>=2&&drafts>0&&checked_rows>0);
+        finals_by_mode[on]=finals;
+        std::printf("Decision onset %s: %zu finals (%zu hard-limit), %zu drafts/speculative, %zu cached rows checked\n",
+                    on?"on":"off",finals,hard,drafts,checked_rows);
+    }
+    assert(finals_by_mode[0]<finals_by_mode[1]);
+}
+int main(){committed_prefix_clearing();tagged_lock_contract();metrics_accounting();draft_pacing_and_phrase_reset();concurrent_ownership();concurrent_ownership(DraftPacing::X2FastFirst);concurrent_ownership(DraftPacing::Legacy,true);concurrent_ownership(DraftPacing::X2FastFirst,true);features_and_draft_preemption();features_and_draft_preemption(DraftPacing::X2FastFirst);exact_promotion_and_resumed_speech();hard_cut_finish_and_cancel();queue_overflow_and_stale_features();decision_onset_pipeline();puts("Streaming: bit-exact cached features, draft preemption, exact promotion, resumed speech, hard cuts, stop/cancel, overflow and stale generations passed");}

@@ -1,5 +1,143 @@
 # Standalone STT readability and recording handoff
 
+## Engine state for integration — 13 November 2026 (Claude)
+
+Three uncommitted engine changes sit in the `mic-level-fix` worktree on top of 1a51eac. Everything below is
+host replay or a host build; nothing has run on a P4.
+- Porting into HardwareOne (file map, flags, model pairing, order, rollback, costs, board checks):
+  [STT_ENGINE_INTEGRATION.md](STT_ENGINE_INTEGRATION.md).
+- Board session that measures what the host cannot (builds A, G, F, B, C; HardwareOne gain chain and
+  glasses in its section 6): [STT_BOARD_TEST_PLAN.md](STT_BOARD_TEST_PLAN.md).
+- Evidence (scripts, logs, scores; not in Git): the worktree's ignored `private/evidence-2026-11-13/`
+  (`INDEX.md`), copied with caches and streams to `stt/work/engine-evidence-2026-11-13/` on the Audiodrive.
+- P4 microphone noise for a future fine-tune: Audiodrive `stt/stores/p4-noise` (training, 130 clips /
+  1,662.4 s from recordings never word-scored) and `stt/stores/p4-noise/heldout` (93 clips / 1,240.5 s from
+  the 16 word-scored recordings); README, split rule and smoke test in `stt/work/p4noise/README.md`. Not used
+  by any training yet.
+
+| Change | Default | Measured (host) | Main cost |
+|---|---|---|---|
+| Level-robust onset `decision_pre_emphasis` 97, gain 150 ([STT_LEVEL_ROBUST_ONSET.md](STT_LEVEL_ROBUST_ONSET.md)) | on (`CAPTIONS_DECISION_PRE_EMPHASIS=y`; `sdkconfig.prev_onset` turns it off) | WER, deployed gen2-25397 + `meeting.lm`: ee4c 74.58 -> 52.50, 076a 71.25 -> 45.21, nb1 28.35 -> 26.79, close 20.64 -> 21.18; 1,568 -> 1,103 errors over 2,614 words. HardwareOne's judge at 97: 1,127. `e8f93103` (PDM x8, 120 Hz): 56.67 -> 43.44 (judge 43.65). With an x8 gain on the recognizer input only (equal to the `2^-30` guard on gen2-25397's calibration; not the blend-g30 package): 1,103 -> 1,080 errors | nb1 noise inside phrases 32 -> 184 of 190 s, false words on nb1 noise 2 / 4 -> 4 / 8 (segments / words), audio to the recognizer x2.2-2.7, `sizeof(Segmenter)` RV32 1,240 -> 4,472 B (ESP-IDF build: internal .data +3,264 B) |
+| Noise controls: modulation gate + raw-latch hold (same document) | off (`CAPTIONS_DECISION_MODULATION_GATE=n`) | Kconfig setting (gate 300 + hold): 1,202 errors (+99; ee4c 61.25), noise inside 3-9 s per day recording; gate 135: 1,099 errors. e8f93103: gate 135 44.17, gate 300 + hold 44.79 | gives back far speech; a talker under bursty noise loses 14-21 s more; not a default candidate |
+| Recognizer log guard `2^-30` + `voice-model-v3-blend-g30` ([STT_FRONTEND_GUARD.md](STT_FRONTEND_GUARD.md)) | on; the build refuses any other model (interlock) | night-1 P4 audio 54.01 -> 50.59% (v3 blend `2^-24` -> blend-g30); confirm-1 1,737 -> 1,727; noise-file check: 22 of 200 chunks produce LM words for both, 155 vs 143 words (whether they are the same chunks is not recorded) | model switch from gen2-25397 (v2) needs the user's go-ahead |
+
+Built, not run: ESP-IDF 5.5.5 (with local PIE context-save edits) built the example for the P4 on 13 Nov
+from a copy of the tree with the blend-g30 identity and model path installed: onset on, onset + gate and
+`sdkconfig.prev_onset` all build (image about 658.6 KB, 91% of the app slot free; RAM identical between
+them), and the v2 and v3 identities stop at the interlock's `static_assert`. Those builds had no metrics
+overlay and no speaker labels, so they are not the board plan's images; build G (1a51eac + onset files on
+gen2-25397, integration step 2) has not been built.
+
+Scorer: the worktree's `tools/sttraw_ab/score.py` and `tools/overlap_gate/caption_wer.py` now have the 10 Nov
+exponent-sign fix (`-rec.exponent`); every WER here was decoded with a fixed scorer. The recognizer still
+needs the main checkout's private `2^-24` frontend binary, so run with that checkout's `tools` first on
+`sys.path`.
+
+Incomplete before integration: no device run (CPU per frame, stack high-water marks, `counters.dropped`,
+decode queue, model self-test, P4 timing); the onset and the blend-g30 package were never scored together;
+HardwareOne's within-phrase leveler and the glasses are untested with the onset (two more x8 and three glasses
+recordings on the drive can be replayed now: board plan H1); the night proxy is not word-scored; no live
+talker, no real night-quiet recording; babble and steady-noise streams not decoded; the p4-noise level_sim
+validation was not run. Host tests do not prove SD/FAT behaviour, model accuracy or P4 real-time performance.
+
+## Onset noise controls (modulation gate, raw-latch hold) — 13 November 2026 (Claude)
+
+Opt-in, uncommitted, same worktree. Details, unit cases and the full tables: `docs/STT_LEVEL_ROBUST_ONSET.md`
+"Noise controls" and "Measurements (13 Nov)".
+
+**What.** `SegmenterConfig::decision_modulation_ratio_pct` (0 off, 101..1000) lets the pre-emphasised level
+vote only while its last 500 ms is modulated; `decision_pre_hold_requires_raw` ignores raw voiced votes
+until the raw level reaches its onset rule in the phrase (carried past a hard limit only when the released
+part reached it). Both ignored while `decision_pre_emphasis` is 0; with both at 0 production is bit for bit
+the 12 Nov onset (U13 hash). Kconfig `CAPTIONS_DECISION_MODULATION_GATE`, **default n**, sets 300 + hold:
+a noisy-room mode, not a default candidate.
+
+**Measured (host replay, deployed gen2-25397 + meeting.lm, WER %):**
+
+| Arm | ee4c9cea | 076aff4a | nb1 63c8c20c | close 7c9393cb (240 s) | noise inside ee4c / 076a / nb1 (s) |
+|---|---|---|---|---|---|
+| production 97/150 | 52.50 | 45.21 | 26.79 | 21.18 | 30.78 / 36.11 / 183.94 |
+| hold alone | 52.50 | 46.04 | 26.79 | 21.18 | 30.75 / 36.07 / 183.94 |
+| gate 135 | 52.19 | 45.10 | 26.48 | 21.45 | 20.96 / 30.24 / 173.11 |
+| gate 135 + hold | 52.19 | 45.42 | 25.55 | 21.45 | 20.92 / 30.19 / 144.52 |
+| gate 300 + hold (Kconfig y) | 61.25 | 46.56 | 27.41 | 21.18 | 3.66 / 2.76 / 65.53 |
+
+Gate 300 + hold gives back far speech (ee4c speech outside 10.63 -> 74.27 s) and does not reduce false
+words on nb1 noise (6 segments / 8 words vs production 4 / 8). Gate 135 is the largest ratio within a
+1.0 s speech-loss limit, picked on these recordings, 5 ratio points from a cliff (140: ee4c +4.97 s);
+its WER changes are a few errors per recording and in-sample. Held-out synthetic steady noise (not
+decoded) goes against it: day white noise at RMS 10 over a talker, speech outside 4.0 s production vs
+45.1 s at gate 135. The hold alone costs 8 errors on 076a; it is needed only for abrupt loud steady noise
+(day white/HF RMS 25: 19 s -> 1.4 s inside with gate + hold, unchanged with either alone).
+
+**Not done / open:** no device run (CPU, stack, `counters.dropped`); the night proxy not word-scored
+(e8f9 scored 13 Nov: option 0 56.67, production 43.44, gate 135 44.17, gate 300 + hold 44.79, judge
+43.65); babble and steady-noise streams not decoded; the gate does nothing for night babble (25 phrases /
+119 s at every arm) or at ratio 135 for bursty 4 kHz noise, and at 300 + hold a talker under bursty 4 kHz
+noise loses +13.8 to +20.8 s more speech than production. Host tests do not prove device behaviour.
+Scorer provenance: `tools/sttraw_ab/score.py` now stores each arm's `segmenter_config` and, since 13 Nov,
+has the main checkout's 10 Nov exponent-sign fix (`-rec.exponent`); every WER here was decoded with the
+fixed scorer. The recognizer still needs the main checkout's private `2^-24` frontend binary.
+
+## Level-robust phrase onset (`decision_pre_emphasis`) — 12 November 2026 (Claude)
+
+Full write-up, arithmetic, commands and switch-off: `docs/STT_LEVEL_ROBUST_ONSET.md`. Uncommitted, in the
+`mic-level-fix` worktree (base 1a51eac).
+
+**Problem.** Far speech through the P4 microphone peaks around 43 counts per 10 ms frame, at the fixed
+45-count onset floor, so 50-58% of the speech in the 1 ft day-room recordings fell outside every phrase.
+
+**Change.** `SegmenterConfig::decision_pre_emphasis` (0 = previous detector bit for bit; C 1..100,
+adaptive only) and `decision_gain_pct` (25..400). With C set, a frame opens or keeps a phrase when either
+the raw energy or the energy of x[n] - (C/100) x[n-1] passes its rule; the 45/16 floors reach the
+pre-emphasised domain through an ambient gain (lower quartiles of idle raw / pre-emphasised energies,
+re-learned on every idle frame). Exact integer energies; the three HardwareOne judge defects are not
+copied. Example: `CONFIG_CAPTIONS_DECISION_PRE_EMPHASIS` default y (C 97, gain 150);
+`sdkconfig.prev_onset` or `=n` restores the previous detector. Recognizer audio, floors,
+`Audio_VadPolicy.h`, `stt_stream.cpp`, frontend and speaker code are unchanged.
+
+**Review fixes (12 Nov).** (1) Digital silence/DC no longer drives the gain to its maximum: constant frames
+skip the gain windows and a zero quartile keeps the previous gain (zero-prefixed and muted recordings now
+give the unmodified files' phrases; before: ee4c +38.7 s inside, room held open 0.5-65 s). (2) After two
+hard limits in a row with no raw frame at the raw onset rule, both ambients re-seed from the window, so
+stationary HF noise ends: white/pink noise 120 s -> 18.8-19.0 s inside (production 0). Bursty HF noise
+(musan 4 kHz) is still held for its whole length. (3) A pipeline test with the option on
+(`tests/stt_stream_test.cpp` `decision_onset_pipeline`). None of these changes any recording result below.
+
+**Host results** (speech outside, before -> now; HW1 judge in brackets):
+ee4c9cea 201.62 -> 10.63 s [11.56]; 076aff4a 173.95 -> 6.12 [10.89]; e8f93103 74.58 -> 2.58 [4.62];
+nb1 63c8c20c 4.10 -> 0.69 [0.85]; close 7c9393cb 0.66 -> 0.12 [0.65]; -12 dB proxy 30.30 -> 1.76 [2.38].
+Worst per-clip loss 0.02 s. Noise items inside: ee4c 0 -> 30.78 s, 076 5.09 -> 36.11, e8f9 7.26 -> 46.20,
+nb1 32.06 -> 183.94 of 190 s. Hard cuts ee4c 1 -> 7, nb1 3 -> 21, 076 0 -> 10. Seconds to the recognizer
+ee4c 141.65 -> 383.62 (tail 8000) / 155.53 -> 401.28 (tail 0, example default).
+All gates pass: option 0 bit-for-bit (150 comparisons + traces), stored production scores reproduced,
+chunk invariance (24), boot robustness, U1-U12 with 7 detecting mutants, boundary modes 0-9 (1200/1955),
+existing stream/noise-freeze/replay tests. (After the 13 Nov noise controls: U1-U16, 11 mutants, modes
+0-11, 1,440 comparisons / 2,346 segments.)
+
+**Not measured / open (read before integrating):**
+- Word scores (13 Nov, deployed gen2-25397 + `meeting.lm`, WER %, option 0 -> production):
+  ee4c 74.58 -> 52.50, 076a 71.25 -> 45.21, nb1 28.35 -> 26.79, close (240 s) 20.64 -> 21.18; 1,568 ->
+  1,103 errors, nearly all fewer deletions. HardwareOne's judge at 97 on the same audio: 52.60 / 46.98 /
+  28.35 / 21.45, 1,127 errors. Gain 100 instead of 150: 17 more errors over three recordings. False words
+  on nb1 noise 2 / 4 -> 4 / 8 (judge 5 / 9). Gain 150 was picked on ee4c (140 gives 13.28 s); 076a and close
+  were not used to pick it. `e8f93103` (PDM x8, no leveler): option 0 56.67 -> production 43.44 (judge
+  43.65); the night proxy is not word-scored. Tables and commands: `docs/STT_LEVEL_ROBUST_ONSET.md`
+  "Word error rate".
+- The nb1 noise/segments bounds are relative to a judge that captures 97.6% of nb1 noise: not evidence of
+  noise control. Babble-only day stream: 59 phrases / 287.1 s (production 0). Bursty HF noise is not handled.
+- Level margin: ee4c at -3 dB gives 21.59 s outside (production 238.34 s); at -12 dB 65%. The floors bind;
+  the option matches spectral tilt, it is not a gain stage.
+- No real night-quiet continuous recording, no live talker (all playback; live evidence synthetic).
+- P4 not run: CPU per frame, `counters.dropped`, capture-task stack (segmenter chain about 320 -> 770 B
+  at -Os), decode queue. RV32 `sizeof(Segmenter)` 1240 -> 4360 B in internal RAM, also when off
+  (4,472 B since the 13 Nov noise controls).
+- Device A/B results recorded before 12 Nov need `sdkconfig.prev_onset` to reproduce (every profile,
+  including the lean control, now builds the new detector).
+- With the option on, logged `noise_rms`/`threshold_rms`/`peak_rms` are square roots of energies.
+- `docs/stt-source-parity*.json` hash for `stt_segmenter.h` was already stale; regenerating needs HardwareOne.
+- Host tests do not prove SD/FAT behaviour, model accuracy or P4 real-time performance.
+
 ## PSRAM fault root cause and fix — 2 November 2026 (Claude)
 
 This supersedes the "corrupting writer is unknown" status below and in
@@ -2016,3 +2154,42 @@ These laptop takes are not a playlist WER. Do not average them with the October 
 Already measured on the onboard mic. Before the leveler, at volume 56: shoes exact; duty `but it the duty of member states an guarantee that this information is available earaneee`. Duty lifted to the shoes peak, volume still 56: `it is the duty of member states to guarantee that this information is available and actrate`. The 0.5 s leveler left `phraseGain` at 1 because `stt record` did not call it; duty came back `it is the duty of member states to guarantee that this information on the baenomeraooeee`. On the 0.1 s leveler, shoes was exact. Gain stepped ×2 at loud3=80, ×4 at 151, ×8 at 282 in the first quarter-second, then ×7 at 5040 and back to ×8 at 3770. Final ×8, loud3=562 on the tail. Quiet duty came back `it is the duty of member states to guarantee that tidepeation of the main one oein`. It stepped ×2 at loud3=61, ×4 at 133, ×8 at 301 in the first quarter-second and never stepped down. Final ×8, loud3=600 on the tail after the clip. Both climbs are the quiet lead-in above speech floor 45, so both lines hit ×8 before the words. The duty ending is worse than the unleveled volume-56 take. This is not a measured accuracy gain. Glasses were not replayed on the 0.1 s leveler. An earlier glasses open of the shoes line was exact, and the next glasses open reported `Microphone PCM delivery timed out`.
 
 Still open: one glasses replay on the 0.1 s leveler, glasses and board the same distance from the speaker, same two lines, volume left where it is. Record `phraseGain` and the caption. Do not score it as the 1-foot playlist. Do not treat a leveler change as an accuracy win unless a larger scored set says so. The leveler turns the words and the room up together when they arrive at the same level.
+
+## Recognizer log guard 2^-30, 12 November 2026
+
+The recognizer front end now uses `log(mel + 2^-30)` instead of `2^-24`. There is one device constant,
+`quartznet_frontend.h` `kLogGuard`, and the Python reference uses `LOG_GUARD`. After per-bin CMVN this equals
+x8 gain with no clipping, which lifts the P4 mic's -61 dBFS speech off the guard. The frontend contract
+`hw1-quartznet5x5ls-en-frontend-v2` has identity `b21a8eeca826691406afbd096423429f2bd0fba8ea93032336368b77ef93dcc7`.
+
+The overlap gate keeps its trained `2^-24` rows through `overlap_rule.h` `to_gate_log_mel`. The speaker
+front end, the segmenter, the weights and training are unchanged.
+
+Host proof with real C++ binaries on 20 night-1 P4 segments and 20 normal-level clips:
+- Raw rows equal old-guard rows of x8 audio to 9.7e-7, on every frame whose samples do not clip.
+- CMVN features agree to 6.4e-6.
+- The gate's converted rows differ in 3 of 1,460,480 int8 values.
+
+All frontend, feature-cache, container and gate host tests pass. The details, the tests that were not run and
+the open steps are in `docs/STT_LOG_GUARD.md`.
+
+Repacked the same day (`docs/STT_FRONTEND_GUARD.md`): `release/voice-model-v3-blend-g30` and
+`release/voice-model-v3-2000h-g30`, same weights and v3 recipe, calibrated on `2^-30` features, frontend
+`b21a8eec…`, exponents -3/-1. A build-time interlock (`stt_frontend_interlock.cpp`, generated
+`quartznet_frontend_contract.h`) now stops the firmware compiling while `stt_model_identity.h` pins another
+frontend, so this tree does not build for the P4 until a `-g30` identity header and `kModelPath` are installed
+(a model switch that needs the user's go-ahead).
+
+Night-1 P4 replay of the blend-g30 export (2^-30 C++ frontend, no dither, same segments): 54.01% -> 50.59% WER
+with the device LM, deletions 12,966 -> 11,819, no words on noise clips. confirm-1 (900 normal-level clips, stock
+dithered recipe): 1,737 -> 1,727 LM errors, so no normal-level regression.
+
+Noise-file check (12 Nov 20:42, package `noise-check.log`): 200 MUSAN/DEMAND chunks, LM 155 words in 22 chunks,
+greedy 216 in 19 (v3 blend: 143 / 22, 227 / 19): the same number of chunks fire (which chunks is not recorded). Board recordings with the onset, x8 gain on
+the recognizer input only (equal to the `2^-30` guard on the deployed gen2-25397 calibration, not the blend-g30
+package; 0 clipped samples): ee4c 52.50 -> 52.71, 076a 45.21 -> 43.65, nb1 26.79 -> 25.55, close 21.18 -> 19.57,
+1,103 -> 1,080 errors; with option 0 1,568 -> 1,574.
+
+Still open: the 2000h-g30 package is unscored; the blend-g30 package itself is not scored on the board
+recordings, confirm-2, tech set or LibriSpeech; the ESP-IDF build compiles (13 Nov, see the top section) but no P4 self-test, timing or live-talker test;
+training stays at `2^-24`.
