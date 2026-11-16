@@ -1949,14 +1949,14 @@ Night 2 and G2i (6 November 2026, Claude, user-requested daytime session): a rep
 
 Live session 1 (6 November 2026 evening, Claude with the user, solo): the user read alone, a LibriSpeech voice played alone, and the user read over that voice; 78 trials, 118 P4 segments saved, production restored. G2c, G2h and G2i rank overlap above single speech (AUC 0.72–0.76), but none flags a single overlap segment at its AMI threshold, on the device or on the host. Boosting the audio +9/+18 dB does not change that. The P4 captures at about −60 dBFS, its normal level (the earlier p4-ordinary recordings are the same). Correction: `real32` are AMI distant-mic overlap pairs, not P4-microphone recordings. See `docs/STT_OVERLAP_GATE_PHASE4_PLAN.md` section 17.
 
-Caption accuracy through the P4 (6 November 2026, Claude, user-requested): `tools/overlap_gate/caption_wer.py` scores the night-1/2 replay captions against the clip text. One host decoder (the deployed int8 model plus the P4's `meeting.lm`) runs on both the original clip files and the P4's saved segment audio; its WER on the P4 audio matches the device's own captions to about 1 point. Results, original file → through the P4:
-- clean read speech 5.2% → 13.3%;
-- ordinary single speaker 10.2% → 19.0%;
-- the same 18 dB quieter 10.3% → 89.4% (64% of words in clips never segmented);
-- AMI single-speaker 33.8% → 60.8%;
-- AMI overlapped 54.7% → 72.3%.
+Caption accuracy through the P4 (6 November 2026, Claude, user-requested): `tools/overlap_gate/caption_wer.py` scores the night-1/2 replay captions against the clip text. One host decoder (the deployed int8 model plus the P4's `meeting.lm`) runs on both the original clip files and the P4's saved segment audio; its output on the P4 audio is the device's own caption text (2,525 of 2,540 night-1 clips identical). Results, original file → through the P4, re-scored 11 November 2026 with the exponent sign fixed. Before the fix, `caption_wer.py` passed the ESP-DL exponent −1 to `hw1lm.decode_int8`, which expects +1, so the figures differed by −0.2 to +1.8 points, mostly higher. The conclusions are unchanged. Deletions grew with the correct scale (single-speaker AMI through the P4: 28.1% → 35.4% of words).
+- clean read speech 4.7% → 12.3%;
+- ordinary single speaker 9.2% → 18.4%;
+- the same 18 dB quieter 9.4% → 89.6% (64% of words in clips never segmented);
+- AMI single-speaker 32.8% → 60.1%;
+- AMI overlapped 52.9% → 71.4%.
 
-Deletions dominate. The device's rawText is not bit-identical to an offline host decode of its saved PCM (61/200 segments identical, 21% word difference): finals are streamed and mostly promoted from speculative drafts. The microphone-path investigation brief for the HardwareOne agent is `docs/STT_MIC_INVESTIGATION_PROMPT.md`. Not checked: live-talker WER, and how much of each clip's speech lies outside every device segment.
+Deletions dominate. The device's rawText matches an offline host decode of its saved PCM (200 of 200 checked segments identical). The 61-of-200 mismatch reported here earlier was the host-side sign bug, not streaming or draft promotion. The microphone-path investigation brief for the HardwareOne agent is `docs/STT_MIC_INVESTIGATION_PROMPT.md`. Not checked: live-talker WER, and how much of each clip's speech lies outside every device segment.
 
 HardwareOne raw-recorder bench (7 November 2026, Claude, user-requested): HardwareOne branch `claude/p4-sttraw-capture` (`b2b81031`) was built on the Mac mini and run on the test P4 (app-only, production restored and verified). A 110 s recording (0 dropped) replays through `stt_raw_replay` to exactly the device's 15 `TL boundary` lines. On that recording:
 - reference speech outside every segment is 25.6% at the production speech floor 45 and 10.1% at 36;
@@ -1968,7 +1968,7 @@ This repository now has the A/B tooling for that bench:
 - `tools/sttraw_ab/score.py`: aligns, replays the detector arms and decodes every segment with one host decoder, then reports WER, empty clips and false captions per arm;
 - `tests/test_sttraw_ab.py`.
 
-Run 1 is too small to decide anything (13 clips): lower floors recovered audio, but the total WER was unchanged (79.2%). Bench notes and the HardwareOne agent's brief are in the ignored `private/sttraw-bench/`. Not done: the full `ab1` recording, the high-pass builds, the noise-floor matrix, live talkers.
+Run 1 is too small to decide anything (13 clips): lower floors recovered audio, but the total WER barely moved: production 78.0%; floors 36, 30 and 24 gave 79.2, 78.0 and 77.4%. These are from the 11 November re-decode with the exponent sign fixed. Before the fix every arm read 79.2%. The manifest was pulled from the mini for the re-decode. Bench notes and the HardwareOne agent's brief are in the ignored `private/sttraw-bench/`. Not done: the full `ab1` recording, the high-pass builds, the noise-floor matrix, live talkers.
 
 P4 microphone path and automatic mode (8 November 2026, Claude, user-requested): this session took over the
 test P4 and the STT/mic work from the HardwareOne release session. Firmware work is on HardwareOne branch
@@ -1984,12 +1984,16 @@ sections 6-7. The recognition model and speaker algorithms are unchanged.
   three speech sessions agree (`stt/stt_auto_gain.h`, RAM only). Wake word and recordings keep the saved mic
   settings.
 - Board results (P4X-EYE, Mac mini speaker, one host decoder, replays exact to the device boundaries):
-  - ab1 at 1 ft, volume 70: old 72.0 / 72.2% WER, automatic 44.3 / 48.0%; quiet read speech missed 8/8 -> 0/8;
+  (WER figures re-decoded 11 November 2026 with the exponent sign fixed, `tools/sttraw_ab/redecode.py`; they moved
+  by -2.7 to +0.9 points. None of the comparisons below changed direction. On the bright-noise recordings the
+  judge-vs-production gaps stay within 2 points but flipped sign in two of four, so that result is still neutral.
+  The pre-fix files are kept as `score.json.wrong-sign`.)
+  - ab1 at 1 ft, volume 70: old 71.2 / 71.6% WER, automatic 43.2 / 46.6%; quiet read speech missed 8/8 -> 0/8;
     no false captions;
   - bright-noise playlist (`tools/sttraw_ab/make_noise_playlist.py`, nb1): no captions on hiss or bright noise;
     the judge adds fragments on recorded meeting-room babble (bystanders);
   - close to the Mac at volume 85 the gain stepped x8 -> x5 by itself after three agreeing sessions with no
-    accuracy change (19.8-24.4% vs fixed x1 22.0%).
+    accuracy change (17.7-22.5% vs fixed x1 21.5%).
 - Also: P4 local STT now requires the SD card and the published 15x5 model (plain `p4x_eye` and the handheld
   deployment build without it); a software `reboot` lost the C6 link (release session's
   `claude/fix-c6-reboot`; second image under test).
@@ -1998,7 +2002,7 @@ sections 6-7. The recognition model and speaker algorithms are unchanged.
 - Not verified: live talkers; the nearest-step rounding on the device (host-tested); auto gain persisting across
   reboots (it does not); wake word/recording behaviour (untouched by design); the `stt_continuous
   --full-phrase` host test flakes under heavy machine load in both the base and this branch.
-- G2 glasses mic (same day): close up 30.3 / 30.7% WER (read speech 7.1%), at 1 ft 72.2 -> 69.0% with the judge
+- G2 glasses mic (same day): close up 29.3 / 28.4% WER (read speech 7.1%), at 1 ft 70.9 -> 68.6% with the judge
   (quiet clips missed 13 -> 5 of 16), bright noise neutral. Each mic now has its own detector profile (onboard
   `stt*`, glasses `sttg2*`), judge 97 on both by default. Scoring G2 needs `tools/sttraw_ab/score.py --align
   envelope` (BLE drops ~0.5% of samples; the waveform fit fails); tested in `tests/test_sttraw_ab.py`.
@@ -2016,3 +2020,45 @@ These laptop takes are not a playlist WER. Do not average them with the October 
 Already measured on the onboard mic. Before the leveler, at volume 56: shoes exact; duty `but it the duty of member states an guarantee that this information is available earaneee`. Duty lifted to the shoes peak, volume still 56: `it is the duty of member states to guarantee that this information is available and actrate`. The 0.5 s leveler left `phraseGain` at 1 because `stt record` did not call it; duty came back `it is the duty of member states to guarantee that this information on the baenomeraooeee`. On the 0.1 s leveler, shoes was exact. Gain stepped ×2 at loud3=80, ×4 at 151, ×8 at 282 in the first quarter-second, then ×7 at 5040 and back to ×8 at 3770. Final ×8, loud3=562 on the tail. Quiet duty came back `it is the duty of member states to guarantee that tidepeation of the main one oein`. It stepped ×2 at loud3=61, ×4 at 133, ×8 at 301 in the first quarter-second and never stepped down. Final ×8, loud3=600 on the tail after the clip. Both climbs are the quiet lead-in above speech floor 45, so both lines hit ×8 before the words. The duty ending is worse than the unleveled volume-56 take. This is not a measured accuracy gain. Glasses were not replayed on the 0.1 s leveler. An earlier glasses open of the shoes line was exact, and the next glasses open reported `Microphone PCM delivery timed out`.
 
 Still open: one glasses replay on the 0.1 s leveler, glasses and board the same distance from the speaker, same two lines, volume left where it is. Record `phraseGain` and the caption. Do not score it as the 1-foot playlist. Do not treat a leveler change as an accuracy win unless a larger scored set says so. The leveler turns the words and the room up together when they arrive at the same level.
+
+## Voice Model v3 and recognizer results, 10 November 2026
+
+Voice Model v3 is packaged but has not run on a P4. It is the deployed 25397 weights re-exported to int8 with `mse` activation calibration (100 training-store clips, esp-ppq 1.3.11) instead of `kl`. The package is `/Volumes/Audiodrive/stt/work/release/voice-model-v3/`: `voice-model-v3.p4.stt`, the generated `stt_model_identity.h`, the unchanged shipped `meeting.lm`, manifests, fixtures, `SHA256SUMS` and a README with integration steps. The packer reproduced the deployed v2 artifact and identity header byte for byte before packing v3. The v3 header differs from v2 only in model size, model SHA-256 and `kInputExponent` (-4 → -3). The graph keeps 201 ESPDL_INT8 nodes with the same shapes and bit widths. Integration means replacing the identity header and pointing the model path at the new file. No firmware source was changed here.
+
+Fresh clips (seed confirm-1, 300 per set, never used for a choice), device LM at the shipped weights: v2 2,035 word errors, v3 1,937 (−4.8%). Distant 42.61 → 41.75%, headset 26.14 → 24.36%, read 5.46 → 4.88%. Greedy: 2,300 → 2,182. The LM decode was checked with the firmware decoder source (`stt_lm.cpp`) compiled on the host. It matches `hw1lm` on 899 of 900 clips (one spelling tie-break) and gives the same 1,937. On 200 ten-second noise-only chunks (MUSAN and DEMAND, both training augmentation, so a relative check), words appeared on 43 chunks with v2 and 32 with v3, using the device LM.
+
+Correction for anyone reading the 9–10 November training notes or `RESULTS.md`/`RESCORE.md` on the Audiodrive. Those device-LM numbers passed the ESP-DL output exponent to `hw1lm.decode_int8` unflipped. That function expects `-exponent`, as `tools/stt_p4/release_benchmark.py` passes it. The logits were 4× too large for 25397 exports and 16× for the 1000-hour model. Every LM figure from those scripts is wrong, including the reported −9.6% and the alpha 0.6 / beta 3.0 LM weights. On the firmware decoder, 0.6/3.0 gives 2,148 errors for v3 against 1,937 at the shipped 0.15/0.5. A corrected sweep puts the shipped weights on the best plateau for v2 and v3. Greedy, float and dev-B figures were not affected.
+
+The 1000-hour recognizer run finished at 18:44 on 10 November (`/Volumes/Audiodrive/stt/work/tech1000-nvidia`, from the NVIDIA base with 25397's recipe plus tech speech). Its best checkpoint is 997.8 h, step 50578. Float, on 1,500 unused validation clips per set paired with 25397: distant 43.08% (−3.23 points, interval −4.06 to −2.36), headset 23.26% (−1.77, −2.59 to −0.99), read 4.88% (+0.08, interval includes zero). Tech speech is 9.71% against 21.1%. With mse int8 and the device LM at shipped weights, on the 450-clip screening set: 917 errors against v3's 976 and v2's 1,011. Fresh-clip judging finished at 00:31 on 11 November (`/Volumes/Audiodrive/stt/work/t1000-judge/JUDGE.md`, run by `final_judge2.sh` with the corrected LM script). Device LM errors at the shipped weights:
+
+- best-dev checkpoint: 1,850;
+- final checkpoint: 1,864;
+- equal average of the last four evaluation checkpoints: 1,847.
+
+For comparison, v3 scores 1,937 and v2 2,035. Distant, headset and read for the average are 38.94%, 22.87% and 5.19%. Read speech is slightly worse than v3's 4.88%, though better than v2. Float dev-B shows no read difference, so the read loss is mostly from int8.
+
+The average won by the rule set in advance, fewest fresh-clip errors. It is effectively tied with best-dev, which leads on the screening set, 917 to 926.
+
+The average is packaged as `/Volumes/Audiodrive/stt/work/release/voice-model-v3-1000h/`, laid out like the v3 package with a README. Its ONNX graph is the same 264 nodes, in order, with the same weight shapes as v3. The identity header differs from v2 in four places:
+
+- size;
+- model SHA-256;
+- `kInputExponent`, -4 → -3;
+- `kOutputExponent`, -1 → -2.
+
+In this repository the runtime reads both exponents only from the identity header, including the LM decoder at `quartznet_runtime.cpp` line 587. The host-built firmware decoder (`stt_lm.cpp`, exponent -2) matches `hw1lm` on all 900 fresh clips, with 1,847 errors. The noise-only check used the same 200 chunks as the 25397 v3 package, with the device LM. Words appeared on 24 chunks (152 words), against 32 (190) for v3 and 43 (210) for v2.
+
+Real-mic replay, written 11 November 04:13 (`/Volumes/Audiodrive/stt/work/realmic/REALMIC.md`): saved P4 audio from the 7–8 November board recordings and the night-1 overlap-gate replays, with every model on the same segments and the device LM.
+
+| Model | Board | Night 1 through the P4 | Night 1 original files |
+|---|---|---|---|
+| v2 | 54.3% | 55.7% | 35.1% |
+| v3 | 53.8% | 55.7% | 33.9% |
+| 1000-hour average | 53.8% | 54.7% | 32.3% |
+| Update 1024 | 57.0% | 59.9% | 33.5% |
+
+About 13,000 of the 21,000 night-1 errors through the P4 are deletions, about 34% of words, and that count is the same for every model. The recognizer cannot recover them. The 1000-hour model helps where the audio arrives intact: on close-range board recordings v2 scores 19.3%, v3 18.4% and the 1000-hour model 17.8%. At 1 ft, where 40–68% of words are deleted, the models tie. Update 1024 is clearly worse on P4 audio, which confirms its 4 November rejection. These recordings predate the automatic gain and phrase leveler. The 1000-hour model is still the recommended v3: it is better on clean audio and no worse on P4 audio. On the mic path as recorded, it is worth about 1–2% fewer errors, not the 9% of the dev sets. The bigger lever is the microphone and segmenter path. The 25397 package stays as the fallback. A 2,000-hour run from the NVIDIA base started at 00:28 on 11 November (`/Volumes/Audiodrive/stt/work/tech2000-nvidia`). It was gated on the 1000-hour model beating v3 by at least 2% on the fresh clips.
+
+The 4 November full-encoder checkpoint (update 1024) re-exported with mse scores 1,886 on the fresh clips (v3 1,937). It was rejected on 4 November for overlap deletions, the release suite and the four physical setups. Those were measured with `kl`, and none has been rerun with mse.
+
+Before either larger model replaces v3, run the release suite, overlap deletions, the four physical setups and the false-caption playlist on the P4. Nothing in this section was measured on hardware.

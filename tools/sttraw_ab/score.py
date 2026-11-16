@@ -284,7 +284,9 @@ def main():
     lm = hw1lm.read_lm(LM_PATH)
 
     def decode(x):
-        return hw1lm.decode_int8(rec.logits(x.astype('<i2')), rec.exponent, lm) if x.size >= 320 else ''
+        # hw1lm dequantises as q * 2^-exponent; rec.exponent is the ESP-DL tensor exponent (-1), so negate it
+        # (as release_benchmark.recognize does). Before 10 Nov 2026 the LM saw logits 4x too large.
+        return hw1lm.decode_int8(rec.logits(x.astype('<i2')), -rec.exponent, lm) if x.size >= 320 else ''
 
     m = json.loads(args.manifest.read_text())
     raw16 = np.fromfile(args.raw, '<i2')

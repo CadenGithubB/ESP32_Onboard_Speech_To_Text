@@ -64,19 +64,21 @@ SNR, or catching quiet speech that is currently thrown away, is.
 **What the P4 audio path costs.** The same host decoder (the deployed int8 model plus the P4's
 `meeting.lm` word LM, the HW1LM1 host reference) was run on the original clip files and on the P4's
 own saved segment audio. The only difference is the audio. On the P4 audio, the host decoder
-reproduces the device's aggregate WER to about 1 point.
+reproduces the device's own captions: 2,525 of 2,540 night-1 clips have identical text.
 
 | Played audio | Original file | Through the P4 | Words dropped: file → P4 | Dropped in clips with no segment |
 |---|---|---|---|---|
-| Clean read speech | 5.2% | 13.3% | 0.4 → 1.6% | 0% |
-| Ordinary single speaker | 10.2% | 19.0% | 1.9 → 4.1% | 0% |
-| The same, 18 dB quieter | 10.3% | 89.4% | 1.8 → 82.1% | 64.1% |
-| AMI meeting, no overlap | 33.8% | 60.8% | 10.8 → 28.1% | 3.2% |
-| AMI meeting, overlapped | 54.7% | 72.3% | 17.5 → 36.6% | 7.2% |
+| Clean read speech | 4.7% | 12.3% | 0.3 → 1.6% | 0% |
+| Ordinary single speaker | 9.2% | 18.4% | 1.9 → 4.7% | 0% |
+| The same, 18 dB quieter | 9.4% | 89.6% | 1.6 → 84.7% | 64.1% |
+| AMI meeting, no overlap | 32.8% | 60.1% | 13.2 → 35.4% | 3.2% |
+| AMI meeting, overlapped | 52.9% | 71.4% | 20.2 → 42.2% | 7.2% |
+
+Re-scored 11 November 2026 with `meeting.lm` decoded at the correct exponent sign. Before the fix, the host LM saw logits 4× too large (`tools/overlap_gate/caption_wer.py` passed −1 where `hw1lm.decode_int8` expects +1). The pre-fix WERs differed by −0.2 to +1.8 points, mostly higher. With the correct scale the LM deletes more words, so the dropped-words column rose, for example from 28.1% to 35.4% on single-speaker AMI through the P4. The conclusions below are unchanged. The "no segment" column does not depend on the decoder.
 
 - About 27 WER points on single-speaker meeting speech are lost between the file and the P4.
   Clean speech more than doubles its error.
-- Quiet speech is fine in the file (10%) and nearly lost on the P4 (89%). Most of that loss is
+- Quiet speech is fine in the file (9%) and nearly lost on the P4 (90%). Most of that loss is
   clips the detector never segmented.
 - On meeting speech, most extra deletions are not whole missed clips. They are inside segments
   (quiet stretches, clipped word starts and ends) or the recognizer dropping words in noisy audio.
@@ -85,9 +87,10 @@ reproduces the device's aggregate WER to about 1 point.
 - Data: `private/training-track/overlap-gate/phase4/caption-wer.json` in that repo, with fields
   `clean_lm` and `p4pcm_lm` per clip.
 
-The device's own rawText is not bit-identical to an offline host decode of the saved PCM. Only 61
-of 200 segments are identical, with a 21% word difference. The device decodes in streaming mode
-and promotes most finals from a speculative draft. Compare A/B arms with one decoder.
+The device's own rawText matches an offline host decode of the saved PCM. With the exponent sign
+fixed, 200 of 200 checked segments are identical, and 2,525 of 2,540 clips agree. The earlier
+61-of-200 mismatch came from the host-side sign bug, not from streaming or speculative drafts.
+Compare A/B arms with one decoder anyway, so detector changes are not confused with decoder changes.
 
 ## What to investigate, in order of expected payoff
 
