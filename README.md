@@ -8,7 +8,7 @@ microphone-to-serial captions example; the model and language model it needs are
 [model-gen2-25397 release](https://github.com/CadenGithubB/HardwareOne_Speech_To_Text/releases/tag/model-gen2-25397).
 
 - [Version report](https://cadengithubb.github.io/HardwareOne_Speech_To_Text/) (`docs/index.html`, served by
-  GitHub Pages): how caption speed, memory and accuracy changed across test versions 1.1-2.0.
+  GitHub Pages): how caption speed, memory and accuracy changed across test versions 1.1-3.0.
 - `firmware/components/hw1_stt`: the speech engine (frontend, ESP-DL runtime, segmenter, LM decoder) as an
   ESP-IDF component; `firmware/examples/p4_eye_captions`: the minimal app.
 - `tools/stt_train_15x5`: QuartzNet 15x5 fine-tuning, data stores and benchmarks.

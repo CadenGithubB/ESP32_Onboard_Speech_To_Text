@@ -12,7 +12,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'tools/stt_train_15x5'))
 from diagnostics import (atomic_json, audit_stores, effective_ids, inspect_store,
-                         error_counts, paired_changes, summarize, sha256)
+                         error_counts, paired_changes, summarize, sha256, condition_of,
+                         wer_difference_interval, format_wer, format_interval)
 from compare_stages import stage_report, compare
 
 
@@ -77,6 +78,32 @@ class EvaluationTests(unittest.TestCase):
         row = {**error_counts('', 'phantom word'), 'seconds': 30}
         self.assertIsNone(summarize([row])['wer'])
         self.assertEqual(summarize([row])['phantom_words_per_minute'], 4)
+
+    def test_speaker_interval_stays_with_the_speaker(self):
+        def row(i, speaker, errors):
+            return {'id': i, 'speaker': speaker, 'ref': 'a', 'pcm_sha256': 'x', 'words': 10,
+                    'errors': errors, 'substitutions': max(errors, 0), 'deletions': 0,
+                    'insertions': 0}
+        before = [row(i, 'A' if i < 2 else 'B', 0) for i in range(4)]
+        after = [row(0, 'A', 10), row(1, 'A', -10), row(2, 'B', 10), row(3, 'B', -10)]
+        interval = wer_difference_interval(before, after, samples=300, seed=3)
+        self.assertEqual(interval['difference'], 0)
+        self.assertEqual(interval['low'], 0)
+        self.assertEqual(interval['high'], 0)
+        self.assertFalse(interval['real'])
+        start = [row(i, 'A' if i < 2 else 'B', 4) for i in range(4)]
+        gained_rows = [row(i, 'A' if i < 2 else 'B', 1) for i in range(4)]
+        gained = paired_changes(start, gained_rows, samples=80, seed=4)
+        self.assertLess(gained['interval']['high'], 0)
+        self.assertTrue(gained['interval']['real'])
+        self.assertEqual(condition_of('librispeech-dev-clean'), 'read')
+        self.assertEqual(condition_of('ami-sdm-validation'), 'distant')
+        self.assertEqual(condition_of('quiet-speech'), 'quiet')
+        self.assertEqual(condition_of('tech-speech-dev'), 'tech')
+        text = format_wer(summarize([row(0, 'A', 2)]))
+        self.assertIn('WER 20.00%', text)
+        self.assertIn('sub 2', text)
+        self.assertIn('real', format_interval(gained['interval']))
 
     def record(self, hyp='a'):
         return {'id': 'dev:1', 'pcm_sha256': 'abc', 'ref': 'a', 'hyp': hyp, 'seconds': 1}
@@ -151,6 +178,89 @@ class TorchTests(unittest.TestCase):
         for p,q in zip(a.parameters(), b.parameters()):
             q.grad.div_(7)
             t.testing.assert_close(p.grad, q.grad)
+
+    def test_scratch_init_is_seeded_and_batchnorm_learns(self):
+        from training_state import seed_all
+        from common import QuartzNet
+        from train import train_mode
+        t = self.torch
+        config = {'encoder': {'params': {'feat_in': 4, 'jasper': [
+            {'filters': 4, 'repeat': 1, 'kernel': [3], 'stride': [1], 'dilation': [1],
+             'residual': True, 'separable': True}]}}}
+        seed_all(7)
+        first = QuartzNet(config).init_scratch()
+        seed_all(7)
+        second = QuartzNet(config).init_scratch()
+        for left, right in zip(first.parameters(), second.parameters()):
+            t.testing.assert_close(left, right)
+        self.assertTrue(t.all(first.blocks[0].norms[0].running_mean == 0))
+        train_mode(first, freeze_bn=False)
+        self.assertTrue(first.blocks[0].norms[0].training)
+        train_mode(first, freeze_bn=True)
+        self.assertTrue(first.training)
+        self.assertFalse(first.blocks[0].norms[0].training)
+
+    def test_rough_numbers_match_float_path_and_pass_gradients(self):
+        import numpy as np
+        from common import QuartzNet, _conv, fake_quant_signed_int8
+        from data import Augmenter
+        t = self.torch
+        weight = t.tensor([0.2, -1.5, 0.4], requires_grad=True)
+        quantized = fake_quant_signed_int8(weight)
+        quantized.sum().backward()
+        t.testing.assert_close(weight.grad, t.ones_like(weight))
+        scale = weight.detach().abs().amax() / 127
+        codes = (quantized.detach() / scale).round()
+        self.assertGreaterEqual(float(codes.min()), -128)
+        self.assertLessEqual(float(codes.max()), 127)
+        config = {'encoder': {'params': {'feat_in': 4, 'jasper': [
+            {'filters': 4, 'repeat': 2, 'kernel': [3], 'stride': [1], 'dilation': [1],
+             'residual': True, 'separable': True}]}}}
+        model = QuartzNet(config)
+        features = t.randn(2, 4, 24)
+        conv = model.blocks[0].convs[0][0]
+        t.testing.assert_close(_conv(conv, features, False), conv(features))
+        lengths = t.tensor([24, 20])
+        model.eval()
+        plain = model(features, lengths)[0]
+        model.set_rough_numbers(True)
+        rough = model(features, lengths)[0]
+        self.assertFalse(t.equal(plain, rough))
+        model.train()
+        rough = model(features, lengths)[0]
+        rough.square().mean().backward()
+        self.assertIsNotNone(model.blocks[0].convs[0][0].weight.grad)
+        self.assertTrue(t.isfinite(model.blocks[0].convs[0][0].weight.grad).all())
+        self.assertIsNotNone(model.blocks[0].norms[0].weight.grad)
+        clip = np.ones(1600, np.float32) * 0.1
+        def levels(farther):
+            aug = Augmenter(None, None, None, strength=0, farther=farther)
+            found = []
+            for i in range(20):
+                y = aug(clip.copy(), random.Random(i))
+                found.append(20 * np.log10(float(np.sqrt(np.mean(np.square(y)))) + 1e-12))
+            return found
+        self.assertTrue(all(-40.5 <= value <= -11.5 for value in levels(False)))
+        self.assertTrue(all(-57.5 <= value <= -46.5 for value in levels(True)))
+        same = Augmenter(None, None, None, strength=1, farther=True)
+        np.testing.assert_array_equal(same(clip, random.Random(1), presentation='clean'), clip)
+        calls = {'n': 0}
+        aug = Augmenter(None, None, None, strength=1, farther=True)
+        real = aug._synthetic_rir
+        def counted(rng):
+            calls['n'] += 1
+            return real(rng)
+        aug._synthetic_rir = counted
+        for i in range(200):
+            aug(clip.copy(), random.Random(i))
+        self.assertGreater(calls['n'], 150)
+        calls['n'] = 0
+        ordinary = Augmenter(None, None, None, strength=1, farther=False)
+        ordinary._synthetic_rir = counted
+        for i in range(200):
+            ordinary(clip.copy(), random.Random(i))
+        self.assertGreater(calls['n'], 60)
+        self.assertLess(calls['n'], 120)
 
     def test_rng_model_and_optimizer_resume(self):
         from training_state import seed_all, save_state, restore_matching

@@ -138,6 +138,11 @@ def main():
     p.add_argument('--precision-op',action='append',default=[],metavar='NODE=SCHEME',
                    help='Local experiment: override a named Conv with w16a16 or w8a16')
     p.add_argument('--save-native',action='store_true',help='Save trusted local PPQ graph for host evaluation')
+    p.add_argument('--ppq-setting',action='append',default=[],metavar='FIELD=VALUE',
+                   help='Local calibration experiment: set a field of the esp-ppq ESP-DL setting '
+                        '(dotted path, e.g. bias_correct=true); unset leaves the default export unchanged')
+    p.add_argument('--ppq-percentile',type=float,default=None,
+                   help='Local calibration experiment: percentile for calib_algorithm=percentile (esp-ppq default 0.9999)')
     p.add_argument('--calib-steps',type=int,default=8)
     p.add_argument('--threads',type=int,default=4)
     p.add_argument('--calib-stores',nargs='*',default=[],metavar='STORE:COUNT',
@@ -212,6 +217,31 @@ def main():
                 p.error('Expected a unique NODE=w8a16 or NODE=w16a16 convolution')
             precision[node]=scheme
             setting.dispatching_table.append(node,get_target_platform('esp32p4',scheme))
+    ppq_overrides={}
+    if args.ppq_percentile is not None:
+        # esp-ppq's percentile observer reads a module constant (default 0.9999).
+        if not 0.9<args.ppq_percentile<=1.0:p.error('--ppq-percentile must be in (0.9, 1]')
+        import esp_ppq.quantization.observer.range as ppq_range
+        ppq_range.OBSERVER_PERCENTILE=args.ppq_percentile
+        ppq_overrides['OBSERVER_PERCENTILE']=args.ppq_percentile
+    if args.ppq_setting:
+        # Local calibration experiment: override fields of esp-ppq's ESP-DL setting, e.g.
+        # equalization=true, bias_correct=true, quantize_activation_setting.calib_algorithm=percentile.
+        if args.quant_type!='w8a8':p.error('--ppq-setting expects the int8 base')
+        if setting is None:
+            from esp_ppq import QuantizationSettingFactory
+            setting=QuantizationSettingFactory.espdl_setting(num_of_bits=8)
+        for spec in args.ppq_setting:
+            path,sep,text=spec.partition('=')
+            if not sep or path in ppq_overrides:p.error('Expected a unique FIELD=VALUE')
+            *parents,leaf=path.split('.')
+            target=setting
+            for name in parents:target=getattr(target,name)
+            if not hasattr(target,leaf):p.error('Unknown esp-ppq setting '+path)
+            old=getattr(target,leaf)
+            value=(text.lower()=='true') if isinstance(old,bool) else type(old)(text) if isinstance(old,(int,float)) else text
+            if isinstance(old,bool) and text.lower() not in ('true','false'):p.error('Expected true/false for '+path)
+            setattr(target,leaf,value); ppq_overrides[path]=value
     export=args.output/'quartznet.espdl'
     started=time.perf_counter()
     # Repeated passes only stabilize statistics; report the two unique clips.
@@ -272,6 +302,7 @@ def main():
             'scripts':{n:sha(HERE/n) for n in ['quartznet_graph.py','export_quartznet.py'] + (['frontend/reference_frontend.py'] if args.frontend=='portable' else [])
                                                                         + (['../stt_train/data.py'] if extra else [])}}
     if precision:report['precision_overrides']=precision
+    if ppq_overrides:report['ppq_setting_overrides']=ppq_overrides
     if args.save_native: report['native_graph']=record(args.output/'evaluation.native')
     if frontend_source is not None: report['frontend_checkpoint']=frontend_source
     (args.output/'manifest.json').write_text(json.dumps(report,indent=2)+'\n')
