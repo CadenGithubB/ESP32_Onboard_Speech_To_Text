@@ -1,86 +1,99 @@
-# HardwareOne Speech To Text
+# ESP32 Onboard Speech To Text
 
-On-device speech-to-text for the ESP32-P4 (HardwareOne's P4X-EYE): the engine that runs on the chip, a
-minimal app that uses it, and the tools that train, export, deploy and test the models.
+Speech to text that runs entirely on an ESP32-P4. No network, no phone, no cloud: you talk, the
+board prints what you said on its serial console.
 
-**Run it on a P4X-EYE:** [`firmware/`](firmware/README.md) has the engine as an ESP-IDF component and a
-microphone-to-serial captions example; the model and language model it needs are attached to the
-[model-gen2-25397 release](https://github.com/CadenGithubB/HardwareOne_Speech_To_Text/releases/tag/model-gen2-25397).
+```
+Listening. Speak now.
+            ... okay so the next thing
+            ... okay so the next thing we need to look at
+[   12.4 s] okay so the next thing we need to look at is the schedule
+            4.6 s of audio in 1180 ms: features 14, model 1011, decode 92 ms, language model
+```
 
-**Version 3.1 (15 November 2026):** a level-robust phrase onset (on by default) that in host replay keeps
-most speech at the recorded 1 ft level inside phrases (much quieter speech is still missed), opt-in onset noise controls, segmenter replay tools, the scorers'
-exponent-sign fix, and the trainer and exporter updates behind the 1000-h and 2000-h recognizer runs. The
-device model is still gen2-25397. Voice Model 3 and its `2^-30` recognizer front end wait on branch
-`voice-model-3-frontend` until a package is chosen. Nothing in 3.1 has run on a P4 yet; see
-[the handoff](docs/STT_PRODUCT_HANDOFF.md), [the onset write-up](docs/STT_LEVEL_ROBUST_ONSET.md),
-[HardwareOne integration](docs/STT_ENGINE_INTEGRATION.md) and [the board test plan](docs/STT_BOARD_TEST_PLAN.md).
+## What you need
 
-- [Version report](https://cadengithubb.github.io/HardwareOne_Speech_To_Text/) (`docs/index.html`, served by
-  GitHub Pages): how caption speed, memory and accuracy changed across test versions 1.1-3.0.
-- `firmware/components/hw1_stt`: the speech engine (frontend, ESP-DL runtime, segmenter, LM decoder) as an
-  ESP-IDF component; `firmware/examples/p4_eye_captions`: the minimal app.
-- `tools/stt_train_15x5`: QuartzNet 15x5 fine-tuning, data stores and benchmarks.
-- [Training diagnostics and reproducible comparisons](docs/STT_TRAINING_DIAGNOSTICS.md): dataset audits, batch/loss diagnostics, resume, and linked recognition-stage reports.
-- [Corrected splits and fixed-model baseline](docs/STT_BASELINE_PREPARATION.md): preserved source data, fresh screening/reserve sets, and float/int8/LM results.
-- [Fixed-model quantization investigation](docs/STT_QUANTIZATION_INVESTIGATION.md): measured activation/output sensitivity and the next calibration experiment.
-- [P4 floating-point feasibility](docs/STT_P4_FLOAT_FEASIBILITY.md): exact model memory costs, runtime limits, and mixed-precision options.
-- [Layer sensitivity experiments](docs/STT_LAYER_SENSITIVITY.md): controlled activation interventions, decoder comparisons and selective ESP-DL export.
-- [Twelve training and caption investigations](docs/STT_TWELVE_INVESTIGATIONS.md) with measurements and findings.
-- [Speech release benchmark](docs/STT_RELEASE_BENCHMARK.md) with the command for comparing two exports.
-- `tools/stt_train`: data preparation, the earlier 5x5 trainer, the word language model (`lm/`) and the tech
-  vocabulary build (`techvocab/`).
-- `tools/stt_p4`: int8 export, model packing, deploy scripts and the speaker-label model exporter (`speaker/`).
-- `tools/device_tests`: the speaker-to-P4-microphone test harness and its analysis.
-- `tools/report`: regenerates `docs/index.html` (the version report) from recorded test sessions.
-- `tools/speech_portable`, `tools/translation_p4`: earlier portable speech and translation experiments.
+- An **ESP32-P4-EYE** board with a v3 chip (sold as ESP32-P4X-EYE) and a USB-C cable.
+- A **microSD card**, FAT32 formatted. It holds the 20 MB model.
+- A Mac or Linux computer.
 
-The `stt_*`, `speech_portable` and `translation_p4` folders originated in HardwareOne's
-`experiments/`; `tools/sync_to_hardwareone.sh` copies selected tooling. The engine began as a
-HardwareOne snapshot. The [standalone port](docs/STANDALONE_PORT.md) reconciles
-identified runtime/SDK fixes and adds a reusable streaming pipeline; fresh device
-performance and accuracy qualification remains pending. A few `stt_p4` tools work on the
-HardwareOne firmware tree (they use paths from its repository root) and run from a HardwareOne checkout.
+## Get it running
 
-No speech data, recordings, models or checkpoints are kept here. Paths come from the environment:
+Run these in order. Steps 1 and 2 are one-time.
 
-| Variable | What |
+**1. Install ESP-IDF 5.5.5** (skip if you already have it):
+
+```bash
+git clone -b v5.5.5 --recursive https://github.com/espressif/esp-idf.git ~/esp/esp-idf
+~/esp/esp-idf/install.sh esp32p4
+```
+
+**2. Get this repository and the model files:**
+
+```bash
+git clone https://github.com/CadenGithubB/ESP32_Onboard_Speech_To_Text.git
+cd ESP32_Onboard_Speech_To_Text
+mkdir "STT Models"
+curl -L -o "STT Models/quartznet15x5-gen2-25397.p4.stt" https://github.com/CadenGithubB/ESP32_Onboard_Speech_To_Text/releases/download/model-gen2-25397/quartznet15x5-gen2-25397.p4.stt
+curl -L -o "STT Models/meeting.lm" https://github.com/CadenGithubB/ESP32_Onboard_Speech_To_Text/releases/download/model-gen2-25397/meeting.lm
+```
+
+**3. Copy the `STT Models` folder onto the microSD card**, at the top level, keeping the folder
+name. On a Mac, with the card mounted as `NO NAME`:
+
+```bash
+cp -R "STT Models" "/Volumes/NO NAME/"
+```
+
+Eject the card and put it in the board.
+
+**4. Build:**
+
+```bash
+. ~/esp/esp-idf/export.sh
+cd firmware/examples/simple_captions
+python3 ../../tools/prepare_esp_dl.py
+idf.py set-target esp32p4
+idf.py build
+```
+
+**5. Plug the board in, then flash and watch.** This replaces whatever firmware is on the board.
+
+```bash
+idf.py flash monitor
+```
+
+Wait for `Listening. Speak now.` and talk. Lines starting with `...` are live drafts; the
+timestamped line is the final caption. Press `Ctrl+]` to leave the monitor.
+
+## If it does not work
+
+The board prints `STOPPED:` and the reason every five seconds.
+
+| Message | Fix |
 |---|---|
-| `STT_ROOT` | data root: speech stores, training work, logs |
-| `CARD` | the mounted microSD card (deploy steps that copy to the card) |
-| `HW1_STT_PYTHON` | a Python with the export tooling (esp-ppq) |
-| `HW1_STT_P4` | the `stt_p4` folder holding the private firmware trees (`private/`) |
-| `HW1_STT_SESSIONS` | recorded device sessions (default `tools/device_tests/speaker/sessions`) |
+| `no microSD card detected` | Reseat the card and press reset. |
+| `microSD card did not mount` | Reformat the card as FAT32 (not exFAT). |
+| `model file missing` | The card needs `STT Models/quartznet15x5-gen2-25397.p4.stt`, spelled exactly. |
+| `Model load failed` | The model file is damaged or is a different model. Download it again. |
+| `No /sd/STT Models/meeting.lm` | Captions still work, less accurately. Copy `meeting.lm` to the card. |
+| `idf.py: command not found` | Run `. ~/esp/esp-idf/export.sh` in this terminal first. |
+| Flash cannot find the board | Use the USB-C port marked for USB-Serial/JTAG, or pass the port: `idf.py -p PORT flash monitor`. |
 
-## Standalone transcript features
+## What is in the repository
 
-The minimal P4 app now includes editable SD-card vocabulary, deterministic display formatting,
-structured offline recordings, and persistent startup ordering. An optional localhost USB browser
-viewer provides live final captions, recording review/search, vocabulary editing and annotated export.
-The speech model and speaker algorithms are unchanged.
+| Folder | What |
+|---|---|
+| [`firmware/examples/simple_captions`](firmware/examples/simple_captions) | The app above: one source file, microphone to captions. Start here. |
+| [`firmware/components/hw1_stt`](firmware/components/hw1_stt) | The engine as an ESP-IDF component: audio features, the int8 QuartzNet 15x5 model runtime, the phrase segmenter, live drafts, and the word language model. |
+| [`firmware/examples/p4_eye_captions`](firmware/examples/p4_eye_captions) | A fuller app: editable vocabulary, saved recordings, speaker labels, a browser viewer. |
+| [`tools/`](tools) | Training, model export, packing, and device test tooling. |
+| [`docs/`](docs) | Measurements and investigation notes. |
 
-- [Implementation and HardwareOne handoff](docs/STT_PRODUCT_HANDOFF.md): plan, actual scope, evidence and remaining integration work.
-- [Viewer and device commands](tools/transcript/README.md): run the browser, edit vocabulary, review saved JSONL files and understand recording boundaries.
-- `firmware/components/hw1_transcript`: bounded portable formatter and vocabulary table.
+To use the engine in your own program, see [`firmware/README.md`](firmware/README.md). How speed
+and accuracy changed across versions is in the
+[version report](https://cadengithubb.github.io/ESP32_Onboard_Speech_To_Text/).
 
-Always inspect a device's actual partition table and back up its installed app before testing this
-standalone example on a HardwareOne device. The example's generated partition table is not proof of
-compatibility with an existing device. Application-only flashing preserves the existing layout.
-
-## Performance investigation (October 2026)
-
-- [Prioritized optimization plan](docs/STT_OPTIMIZATION_PLAN.md): proposed speed, memory and accuracy experiments.
-- [Interactive performance graphs](docs/stt-performance-graphs.html): open locally in a browser; requires internet for the pinned D3 library.
-- [Live glasses profile](docs/GLASSES_LIVE_PROFILE.md) and [numeric dataset](docs/performance-glasses-live.json): integrated firmware 0.99.99, with measurement limits.
-- [Standalone/source audit](docs/PERFORMANCE_AUDIT.md) and [storage incident/settings checks](docs/SYSTEM_LOG_STORAGE_INCIDENT.md).
-
-The live profile measures the integrated HardwareOne app, not this standalone
-app. Proposed optimizations are not implemented. Private logs, recordings,
-settings backups and firmware rollback images are excluded from Git.
-
-Reusable STT performance and features are developed and qualified here first,
-then adapted for HardwareOne. The source port and host/build checks are complete;
-fresh standalone device qualification is the next acceptance step.
-
-- [Ported features, profiles and validation](docs/STANDALONE_PORT.md).
-- `firmware/components/hw1_stt/stt/stt_stream.*`: portable feature caches, drafts,
-  cancellation and speculative-final ownership, with platform adapters in the example.
+The model is NVIDIA's QuartzNet 15x5 fine-tuned on AMI, LibriSpeech, VoxPopuli and People's Speech;
+sources and licences are listed on the
+[model release](https://github.com/CadenGithubB/ESP32_Onboard_Speech_To_Text/releases/tag/model-gen2-25397).
