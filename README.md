@@ -66,6 +66,27 @@ idf.py flash monitor
 Wait for `Listening. Speak now.` and talk. Lines starting with `...` are live drafts; the
 timestamped line is the final caption. Press `Ctrl+]` to leave the monitor.
 
+## With the screen and wheel
+
+`screen_captions` is the same engine with the board's own screen and wheel, so it needs no
+computer once flashed. Build and flash it exactly as in steps 4 and 5, from its own folder:
+
+```bash
+cd firmware/examples/screen_captions
+```
+
+| Control | What it does |
+|---|---|
+| Press the wheel | Pause and resume listening. |
+| Turn the wheel | Open the settings. Turn to move, press to change, choose `Back` to leave. |
+
+The settings are microphone gain, language model strength, speaker labels, live drafts,
+noisy-room mode and how long a pause ends a phrase. They are saved on the board. The last
+three restart the board to take effect.
+
+**Speaker labels** number each caption by who said it. They need a third file on the card,
+`STT Models/speaker.spk`; without it the app runs with no labels.
+
 ## If it does not work
 
 The board prints `STOPPED:` and the reason every five seconds.
@@ -85,6 +106,7 @@ The board prints `STOPPED:` and the reason every five seconds.
 | Folder | What |
 |---|---|
 | [`firmware/examples/simple_captions`](firmware/examples/simple_captions) | The app above: one source file, microphone to captions. Start here. |
+| [`firmware/examples/screen_captions`](firmware/examples/screen_captions) | The same, on the board's screen, with settings on the wheel and speaker labels. |
 | [`firmware/components/hw1_stt`](firmware/components/hw1_stt) | The engine as an ESP-IDF component: audio features, the int8 QuartzNet 15x5 model runtime, the phrase segmenter, live drafts, and the word language model. |
 | [`firmware/examples/p4_eye_captions`](firmware/examples/p4_eye_captions) | A fuller app: editable vocabulary, saved recordings, speaker labels, a browser viewer. |
 | [`tools/`](tools) | Training, model export, packing, and device test tooling. |

@@ -6,6 +6,7 @@ Everything needed to run the models on an ESP32-P4 without the rest of HardwareO
 |---|---|
 | `components/hw1_stt` | The engine as an ESP-IDF component: log-mel frontend, ESP-DL int8 QuartzNet runtime, phrase segmenter, word-trigram language model with CTC beam search, model container check. HardwareOne runtime/memory/LM/speaker improvements are ported into standalone adapters; model identity remains pinned independently. See the port report below. |
 | `examples/simple_captions` | The simplest app: one source file, microphone to serial captions with live drafts and the language model. Build steps are in the [top-level README](../README.md). |
+| `examples/screen_captions` | The same engine with captions on the board's screen, settings on the wheel (pause, microphone gain, language model strength, drafts, noisy-room mode, end pause) and speaker labels. |
 | `examples/p4_eye_captions` | Microphone to serial captions with SD vocabulary, offline JSONL recordings and persistent startup ordering. No network, accounts or on-device display; an optional localhost USB viewer runs on the Mac. |
 | `tools/prepare_esp_dl.py` | Stages the patched ESP-DL 3.3.12 the engine needs (see below). `esp-dl-3.3.12-hw1.patch` is the patch. |
 
