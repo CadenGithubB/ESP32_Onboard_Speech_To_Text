@@ -17,12 +17,6 @@ at firmware/.sdk-overrides/esp32p4/espressif__esp-dl, which this script creates:
     copy in a per-layer metadata block, and Add, LUT and Relu return; each
     Conv then runs on its prepared args once (same args, bit-identical
     output). With the flag never set every module runs as upstream;
-  - opt-in CONFIG_HW1_STT_MODEL_LOCAL_PREPARE: Model::prepare_args invokes a
-    separate per-module prepare entry point. Only Conv overrides it, using
-    object-owned state and an armed/consumed block; other operators do nothing.
-    Normal execution in another model ignores the legacy global prepare flag.
-    This also keeps RequantizeLinear from computing during a preparation pass.
-    The default remains the legacy path until independent qualification;
   - int8 LUT layers whose table is exactly ReLU (dl_base_lut.cpp checks all
     256 entries on every call) run as a 16-byte vector max
     (dl/tool/isa/esp32p4/dl_esp32p4_s8_relu_hw1.S) instead of a per-byte
@@ -77,8 +71,8 @@ PATCH = ROOT / "esp-dl-3.3.12-hw1.patch"
 ARCHIVE_URL = f"https://components-file.espressif.com/components/espressif/esp-dl/{VERSION}/{NAME}-v{VERSION}.zip"
 # The component manager adds the registry's checksum list to its copy of a package; the tree digest includes it.
 CHECKSUMS_URL = f"https://components-file.espressif.com/components/espressif/esp-dl/{VERSION}/CHECKSUMS.json"
-PATCH_SHA256 = "d7e92769775d6de4a7e3500521b01c071adaf3a05e73e3f883c5cf1838c426b1"
-PATCHED_TREE_SHA256 = "5a4ca4993f401f3bcb45342a245b1f13b1940217af71fba98c3d30091af2967f"
+PATCH_SHA256 = "3683c14d3061707ecae4d5892c7a0bc1e67119ca192e5c7ef13b76a2811c9821"
+PATCHED_TREE_SHA256 = "b1533b70400053c3f7518e19b17e9082f0f486f7ce9c9b4ee39967d349c76347"
 MANIFEST = "hw1-esp-dl-override.json"
 # Present only in component-manager copies; not part of the package itself.
 IGNORED = {".component_hash", MANIFEST}

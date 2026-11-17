@@ -1,7 +1,7 @@
 #include "quartznet_runtime.h"
 #include "stt_internal_memory.h"
 #include "quartznet_frontend.h"
-#include "stt_model_identity.h"
+#include "stt_model_selection.h"
 #include "stt_model_container.h"
 #include "dl_model_base.hpp"
 #if HW1_STT_RESIDENT_MODEL
@@ -189,6 +189,7 @@ ModelCache::Resident* buildResident(const void* raw,const char*& why) {
     std::unique_ptr<ModelCache::Resident> r(new(std::nothrow) ModelCache::Resident);
     if(!r) { why="alloc"; return nullptr; }
     std::map<std::string,std::vector<int>> shapes{{identity::kInputName,{1,int(maxFrames),1,64}}};
+    const DlCompactExponents compactExponents;
     r->model.reset(new(std::nothrow) dl::Model(static_cast<const char*>(raw),fbs::MODEL_LOCATION_IN_FLASH_RODATA,0,
         dl::MEMORY_MANAGER_GREEDY,nullptr,false,shapes));
     if(!r->model) { why="model"; return nullptr; }
@@ -425,6 +426,7 @@ bool transcribe(ModelReader reader, const int16_t* pcm, size_t samples,
         model=resident->model.get(); input=resident->input; output=resident->output;
     } else {
         std::map<std::string,std::vector<int>> shapes{{identity::kInputName,{1,int(frames),1,64}}};
+        const DlCompactExponents compactExponents;
         perCall.reset(new(std::nothrow) dl::Model(
             static_cast<const char*>(weights.raw_),fbs::MODEL_LOCATION_IN_FLASH_RODATA,0,
             dl::MEMORY_MANAGER_GREEDY,nullptr,false,shapes));
@@ -448,6 +450,7 @@ bool transcribe(ModelReader reader, const int16_t* pcm, size_t samples,
     // A fresh model per utterance avoids Model::build's resize allocation leak.
     // Aligned EDL2+ in PSRAM allows zero-copy parameters; weights outlive model.
     std::map<std::string,std::vector<int>> shapes{{identity::kInputName,{1,int(frames),1,64}}};
+    const DlCompactExponents compactExponents;
     std::unique_ptr<dl::Model> model(new(std::nothrow) dl::Model(
         static_cast<const char*>(weights.raw_),fbs::MODEL_LOCATION_IN_FLASH_RODATA,0,
         dl::MEMORY_MANAGER_GREEDY,nullptr,false,shapes));
@@ -537,14 +540,10 @@ bool transcribe(ModelReader reader, const int16_t* pcm, size_t samples,
     // keeps. Per-call models (the warm-up) skip the pass, so the LM, which
     // the warm-up loads lazily at its decode, sees the same PSRAM as before.
     if(resident) {
-#if CONFIG_HW1_STT_MODEL_LOCAL_PREPARE
-        model->prepare_args(dl::RUNTIME_MODE_MULTI_CORE);
-#else
         if(++hw1_dl_prepare_gen==0)++hw1_dl_prepare_gen;
         hw1_dl_prepare_mode=1;
         for(int stage=0;stage<identity::kNodeCount;++stage)model->run(identity::kNodeCount,stage,dl::RUNTIME_MODE_MULTI_CORE);
         hw1_dl_prepare_mode=0;
-#endif
     }
 #endif
     constexpr int64_t kYieldBlockUs=250000;
@@ -584,7 +583,7 @@ bool transcribe(ModelReader reader, const int16_t* pcm, size_t samples,
     // Any decoder failure other than cancellation decodes greedily instead.
     const auto logits=static_cast<const int8_t*>(output->data);
     DecodeResult decoded=decoder && decoder->decode
-        ? decoder->decode(decoder->context,logits,outputs,identity::kOutputExponent,text,capacity,control)
+        ? decoder->decode(decoder->context,logits,outputs,identity::kOutputExponent,text,capacity,control,DecodeScratch{})
         : DecodeResult::Fallback;
     if(decoded==DecodeResult::Cancelled)return fail("Cancelled");
     if(decoded==DecodeResult::Decoded && !memchr(text,0,capacity))decoded=DecodeResult::Fallback;
@@ -651,11 +650,13 @@ bool transcribe(ModelReader reader, const int16_t* pcm, size_t samples,
                      unsigned(foreign1.objects-foreign0.objects),unsigned(foreign1.internal-foreign0.internal));
             uint32_t kindBytes[kDlMetadataKinds];
             for(size_t k=0;k<kDlMetadataKinds;++k)kindBytes[k]=dlMetadataDelta(kind0[k],dlMetadataStats(k)).bytes;
-            static_assert(kDlMetadataKinds==11,"TL e3m lists every metadata kind");
-            ESP_LOGI("STT","TL e3m model=%u ctx=%u loader=%u fbs=%u module=%u tensor=%u exp=%u shape=%u index=%u list=%u names=%u",
+            static_assert(kDlMetadataKinds==13,"TL e3m lists every metadata kind");
+            ESP_LOGI("STT","TL e3m model=%u ctx=%u loader=%u fbs=%u module=%u tensor=%u exp=%u shape=%u index=%u list=%u names=%u "
+                           "plan=%u fbsmap=%u",
                      unsigned(kindBytes[0]),unsigned(kindBytes[1]),unsigned(kindBytes[2]),unsigned(kindBytes[3]),
                      unsigned(kindBytes[4]),unsigned(kindBytes[5]),unsigned(kindBytes[6]),unsigned(kindBytes[7]),
-                     unsigned(kindBytes[8]),unsigned(kindBytes[9]),unsigned(kindBytes[10]));
+                     unsigned(kindBytes[8]),unsigned(kindBytes[9]),unsigned(kindBytes[10]),unsigned(kindBytes[11]),
+                     unsigned(kindBytes[12]));
         } else {
             ESP_LOGW("STT","TL e3 resident=0 reason=%s int_free=%u psram_free=%u psram_largest=%u meta_n=%u fallback=%u; per-call models",
                      why,unsigned(heap_caps_get_free_size(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT)),

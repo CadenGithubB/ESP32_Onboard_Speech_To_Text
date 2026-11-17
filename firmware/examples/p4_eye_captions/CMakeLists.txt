@@ -3,6 +3,8 @@ cmake_minimum_required(VERSION 3.16)
 # Build (ESP-IDF 5.5.5 exported, from this directory):
 #   python3 ../../tools/prepare_esp_dl.py      # once: stage the patched ESP-DL 3.3.12
 #   idf.py set-target esp32p4 build flash monitor
+# This example uses the QuartzNet 15x5 model; the engine builds one acoustic model per project.
+set(HW1_STT_MODEL "quartznet" CACHE STRING "Acoustic model" FORCE)
 set(EXTRA_COMPONENT_DIRS "${CMAKE_CURRENT_LIST_DIR}/../../components")
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(p4_eye_captions)

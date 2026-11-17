@@ -1,7 +1,36 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -146,7 +146,24 @@ include(${COMPONENT_DIR}/cmake/compile_finalize.cmake)
+ cmake_language(DEFER DIRECTORY ${CMAKE_SOURCE_DIR} CALL esp_dl_compile_finalize)
+ 
+ component_compile_options(-ffast-math -O3 -Wno-error=format=-Wno-format)
+-add_prebuilt_library(fbs_model fbs_loader/lib/${IDF_TARGET}/libfbs_model.a)
++if(IDF_TARGET STREQUAL "esp32p4")
++    # HardwareOne: link a copy of prebuilt libfbs_model.a whose own operator new(size_t) and
++    # operator delete(void*, size_t) requests go to hw1_dl_fbs_new / hw1_dl_fbs_delete
++    # (dl/tool/src/dl_tool_metadata.cpp, MetadataKind::FbsMap) instead of the global pair. Only
++    # those two undefined symbols of that one object are renamed; its code is unchanged.
++    set(hw1_fbs_model_src ${COMPONENT_DIR}/fbs_loader/lib/${IDF_TARGET}/libfbs_model.a)
++    set(hw1_fbs_model_lib ${CMAKE_CURRENT_BINARY_DIR}/libfbs_model_hw1.a)
++    add_custom_command(OUTPUT ${hw1_fbs_model_lib}
++                       COMMAND ${CMAKE_OBJCOPY} --redefine-sym _Znwj=hw1_dl_fbs_new
++                               --redefine-sym _ZdlPvj=hw1_dl_fbs_delete ${hw1_fbs_model_src} ${hw1_fbs_model_lib}
++                       DEPENDS ${hw1_fbs_model_src}
++                       VERBATIM)
++    add_custom_target(hw1_fbs_model DEPENDS ${hw1_fbs_model_lib})
++    add_prebuilt_library(fbs_model ${hw1_fbs_model_lib})
++    add_dependencies(fbs_model hw1_fbs_model)
++else()
++    add_prebuilt_library(fbs_model fbs_loader/lib/${IDF_TARGET}/libfbs_model.a)
++endif()
+ target_link_libraries(${COMPONENT_LIB} PRIVATE fbs_model)
+ 
+ # component_compile_options(-ffast-math -frtti -O3 -Wno-error=format=-Wno-format)
 diff --git a/dl/base/dl_base_conv_args.hpp b/dl/base/dl_base_conv_args.hpp
 --- a/dl/base/dl_base_conv_args.hpp
 +++ b/dl/base/dl_base_conv_args.hpp
-@@ -237,19 +237,23 @@
+@@ -237,19 +237,23 @@ inline void conv_1x1_body_view(const ConvArgsType &args,
   */
  class ConvOpArgs {
  public:
@@ -29,7 +58,7 @@ diff --git a/dl/base/dl_base_conv_args.hpp b/dl/base/dl_base_conv_args.hpp
      {
          const int act_bytes = conv_feature_bytes(quant);
          const int filter_bytes = conv_filter_bytes(quant);
-@@ -352,8 +356,20 @@
+@@ -352,8 +356,20 @@ public:
  #if CONFIG_PIE_V2_BOOST
              // per-channel quantization
              args.mac_shift = INT_MIN;
@@ -52,7 +81,7 @@ diff --git a/dl/base/dl_base_conv_args.hpp b/dl/base/dl_base_conv_args.hpp
              if (act_bytes == 1) {
                  int8_t *p = (int8_t *)args.tie_filter_channel_factor;
                  for (int i = 0; i < args.output_channel; i++) {
-@@ -441,6 +457,30 @@
+@@ -441,6 +457,30 @@ public:
              args.debug_value = tool::calloc_aligned(16, 1, MALLOC_CAP_DEFAULT);
          }
          m_args.assign(1, args);
@@ -83,7 +112,7 @@ diff --git a/dl/base/dl_base_conv_args.hpp b/dl/base/dl_base_conv_args.hpp
          if (args.input_height > 4 * args.dilation_h * args.filter_height) {
              if (runtime_mode == RUNTIME_MODE_MULTI_CORE ||
                  (runtime_mode == RUNTIME_MODE_AUTO && args.input_height >= 100 && args.input_width >= 50)) {
-@@ -481,8 +521,8 @@
+@@ -481,8 +521,8 @@ public:
          if (m_args.empty())
              return;
          // tie_filter_channel_factor is allocated only on the per-channel path (mac_shift == INT_MIN).
@@ -94,18 +123,17 @@ diff --git a/dl/base/dl_base_conv_args.hpp b/dl/base/dl_base_conv_args.hpp
          // debug_value defaults to nullptr (see ConvArgsType); free is a no-op when not allocated.
          heap_caps_free(m_args[0].debug_value);
      }
-@@ -496,7 +536,8 @@
+@@ -496,7 +536,8 @@ public:
      ConvOpArgs &operator=(const ConvOpArgs &) = delete;
-
+ 
  private:
 -    std::vector<ConvArgsType> m_args;
 +    bool m_owns_factors = false;
 +    tool::meta_vector<ConvArgsType, tool::MetadataKind::Module> m_args;
  };
-
+ 
  } // namespace base
 diff --git a/dl/base/dl_base_conv_loop.cpp b/dl/base/dl_base_conv_loop.cpp
-index 96c5377..55ad503 100644
 --- a/dl/base/dl_base_conv_loop.cpp
 +++ b/dl/base/dl_base_conv_loop.cpp
 @@ -40,10 +40,20 @@ static bool conv_loop_pie_tiled(ConvArgsType &args,
@@ -128,13 +156,13 @@ index 96c5377..55ad503 100644
 +    constexpr int spatial_tile = 64;
  #endif
 -    constexpr int spatial_tile = 32;
-
+ 
      // height/width/pointers are the body rectangle: the full map when there is
      // no pad, or conv_1x1_body_view() after 1x1 pad fill. Stride is already in
 @@ -399,6 +409,54 @@ static void conv_loop_pie_grid(
      }
  }
-
+ 
 +// HardwareOne: output-channel blocks for 16-bit-activation KxK convs whose filter outgrows the cache.
 +// The w8a16/s16 hwcn/33cn kernels compute one output pixel for all n_div_x groups of 8 output channels,
 +// reading the filter group after group ([N/8][kh][kw][C][8]), so every pixel re-reads the whole filter:
@@ -196,15 +224,14 @@ index 96c5377..55ad503 100644
 +    }
  }
  #endif
-
+ 
 diff --git a/dl/base/dl_base_conv_select.hpp b/dl/base/dl_base_conv_select.hpp
-index 8eae64c..9ebda28 100644
 --- a/dl/base/dl_base_conv_select.hpp
 +++ b/dl/base/dl_base_conv_select.hpp
 @@ -49,6 +49,9 @@ inline uint16_t dl_conv_key_from_args(const ConvArgsType &args, int group_dw, qu
          dtype, group_dw ? 1 : 0, kshape, args.bias_element ? 1 : 0, act, args.mac_shift == INT_MIN ? 1 : 0, c_align);
  }
-
+ 
 +/** HardwareOne speaker diagnostics: when set, each distinct packed key is logged once at bind (TL kbind). */
 +extern "C" int hw1_dl_log_kernel_binds;
 +
@@ -229,7 +256,6 @@ index 8eae64c..9ebda28 100644
          return false;
      }
 diff --git a/dl/base/dl_base_dwconv_loop.cpp b/dl/base/dl_base_dwconv_loop.cpp
-index fc57844..8854e7c 100644
 --- a/dl/base/dl_base_dwconv_loop.cpp
 +++ b/dl/base/dl_base_dwconv_loop.cpp
 @@ -3,6 +3,7 @@
@@ -238,12 +264,12 @@ index fc57844..8854e7c 100644
  #include "dl_tool.hpp"
 +#include "esp_cpu.h"
  #include "esp_log.h"
-
+ 
  namespace dl {
 @@ -551,6 +552,50 @@ static void dwconv_loop_pie(
  }
  #endif
-
+ 
 +#if CONFIG_PIE_V1_BOOST || CONFIG_PIE_V2_BOOST
 +// HardwareOne: 64-channel column blocks for single-column int8 depthwise layers.
 +// The kernel computes one output row across all channels per call. For [K,1] filters
@@ -306,7 +332,6 @@ index fc57844..8854e7c 100644
      if (!fn2) {
          ESP_LOGE("depthwise_conv2d", "unbound Conv tail kernel");
 diff --git a/dl/base/dl_base_elemwise.cpp b/dl/base/dl_base_elemwise.cpp
-index ec19478..44dec11 100644
 --- a/dl/base/dl_base_elemwise.cpp
 +++ b/dl/base/dl_base_elemwise.cpp
 @@ -47,9 +47,11 @@ std::vector<elemwiseArgsType<in_feature_t, out_feature_t>> get_elemwise_operatio
@@ -325,13 +350,12 @@ index ec19478..44dec11 100644
      if (dims > kMaxDims) {
          ESP_LOGE("Element-wise", "Do not support dim=%d", dims);
 diff --git a/dl/base/dl_base_lut.cpp b/dl/base/dl_base_lut.cpp
-index 992bdff..7f96d4f 100644
 --- a/dl/base/dl_base_lut.cpp
 +++ b/dl/base/dl_base_lut.cpp
 @@ -14,6 +14,25 @@ static void lut_s8_c(int8_t *output, const int8_t *input, int32_t size, const in
      }
  }
-
+ 
 +#if CONFIG_PIE_V2_BOOST
 +// HardwareOne: dl/tool/isa/esp32p4/dl_esp32p4_s8_relu_hw1.S (that directory is always compiled on the P4).
 +extern "C" void dl_esp32p4_s8_relu_hw1(int8_t *output, const int8_t *input, int32_t vectors);
@@ -371,14 +395,21 @@ index 992bdff..7f96d4f 100644
 +        return;
 +    }
 +#endif
-
+ 
      int32_t processed = 0;
  #if CONFIG_PIE_V2_BOOST || CONFIG_PIE_V1_BOOST
 diff --git a/dl/model/include/dl_memory_manager.hpp b/dl/model/include/dl_memory_manager.hpp
-index 89c4c08..a642bc6 100644
 --- a/dl/model/include/dl_memory_manager.hpp
 +++ b/dl/model/include/dl_memory_manager.hpp
-@@ -39,7 +39,7 @@ public:
+@@ -2,6 +2,7 @@
+ 
+ #include "dl_model_context.hpp"
+ #include "dl_module_base.hpp"
++#include "dl_tool_metadata.hpp"
+ #include "esp_heap_caps.h"
+ #include "fbs_model.hpp"
+ #include <list>
+@@ -39,7 +40,7 @@ public:
       * @return Bool Return true if the allocation is successful, false otherwise.
       */
      virtual bool alloc(fbs::FbsModel *fbs_model,
@@ -387,19 +418,133 @@ index 89c4c08..a642bc6 100644
                         ModelContext *context,
                         const std::map<std::string, std::vector<int>> &input_shapes = {}) = 0;
  };
+@@ -50,10 +51,10 @@ public:
+  */
+ class TensorInfo {
+ private:
+-    std::string name;
++    tool::plan_string name; // HardwareOne: this record, its name and its shape are MetadataKind::Plan blocks
+     int time_begin;
+     int time_end;
+-    std::vector<int> shape;
++    tool::plan_vector<int> shape;
+     dtype_t dtype;
+     int exponent;
+     size_t size; // Size, in bytes
+@@ -79,10 +80,12 @@ public:
+      * @param exponent      Tensor exponent
+      * @param is_internal   Is tensor in internal RAM or not
+      */
+-    TensorInfo(std::string &name,
++    DL_METADATA_NEW_DELETE(Plan, alignof(TensorInfo))
++
++    TensorInfo(const std::string &name,
+                int time_begin,
+                int time_end,
+-               std::vector<int> shape,
++               const std::vector<int> &shape,
+                dtype_t dtype,
+                int exponent,
+                bool is_internal = false);
+@@ -265,7 +268,7 @@ public:
+      *
+      * @return std::string
+      */
+-    std::string get_name() { return this->name; }
++    std::string get_name() { return std::string(this->name.data(), this->name.size()); }
+ 
+     /**
+      * @brief Get the tensor shape
+@@ -294,6 +297,8 @@ public:
+  */
+ class MemoryChunk {
+ public:
++    DL_METADATA_NEW_DELETE(Plan, alignof(MemoryChunk))
++
+     size_t size;        /*!< Memory chunk size */
+     bool is_free;       /*!< Whether memory chunk is free or not */
+     int offset;         /*!< Offset relative to root pointer */
+@@ -357,17 +362,20 @@ public:
+     }
+ };
+ 
++/** HardwareOne: the planner's chunk lists keep their nodes in MetadataKind::Plan blocks. */
++using MemoryChunkList = std::list<MemoryChunk *, tool::MetadataStlAllocator<MemoryChunk *, tool::MetadataKind::Plan>>;
++
+ /**
+  * @brief Prints detailed information about memory chunks in the specified list
+  * @param tag          Character string identifying the memory pool type (e.g., "PSRAM" or "INTERNAL")
+  * @param memory_list  Reference to list of MemoryChunk objects to display allocation details
+  */
+-void print_memory_list(const char *tag, std::list<MemoryChunk *> &memory_list);
++void print_memory_list(const char *tag, MemoryChunkList &memory_list);
+ 
+ /**
+  * @brief Sorts memory chunks in ascending order by their allocated size
+  * @param memory_list  Reference to list of MemoryChunk objects to be sorted
+  */
+-void sort_memory_list(std::list<MemoryChunk *> &memory_list);
++void sort_memory_list(MemoryChunkList &memory_list);
+ 
+ } // namespace dl
 diff --git a/dl/model/include/dl_memory_manager_greedy.hpp b/dl/model/include/dl_memory_manager_greedy.hpp
-index 7f249d9..bc50659 100644
 --- a/dl/model/include/dl_memory_manager_greedy.hpp
 +++ b/dl/model/include/dl_memory_manager_greedy.hpp
-@@ -27,7 +27,7 @@ private:
+@@ -12,10 +12,10 @@ class MemoryManagerGreedy : public MemoryManagerBase {
+ private:
+     size_t max_internal_size;                      /*!< Maximum allowed internal RAM usage in bytes.
+                                                       Effective only when PSRAM is available */
+-    std::list<MemoryChunk *> psram_memory_list;    /*!< List of allocated PSRAM memory blocks */
+-    std::list<MemoryChunk *> psram_free_list;      /*!< List of free PSRAM memory blocks */
+-    std::list<MemoryChunk *> internal_memory_list; /*!< List of allocated internal RAM memory blocks */
+-    std::list<MemoryChunk *> internal_free_list;   /*!< List of free internal RAM memory blocks */
++    MemoryChunkList psram_memory_list;    /*!< List of allocated PSRAM memory blocks */
++    MemoryChunkList psram_free_list;      /*!< List of free PSRAM memory blocks */
++    MemoryChunkList internal_memory_list; /*!< List of allocated internal RAM memory blocks */
++    MemoryChunkList internal_free_list;   /*!< List of free internal RAM memory blocks */
+ 
+     /**
+      * @brief Extracts tensor metadata (shape, data type, size) from FlatBuffer model
+@@ -27,9 +27,9 @@ private:
       * @param input_shapes Optional map to override graph input shapes
       */
      void get_tensor_info_from_fbs(fbs::FbsModel *fbs_model,
 -                                  std::vector<dl::module::Module *> execution_plan,
 +                                  const dl::module::ExecutionPlan &execution_plan,
                                    ModelContext *context,
-                                   std::vector<TensorInfo *> &tensor_info,
+-                                  std::vector<TensorInfo *> &tensor_info,
++                                  tool::plan_vector<TensorInfo *> &tensor_info,
                                    const std::map<std::string, std::vector<int>> &input_shapes = {});
+ 
+     /**
+@@ -37,14 +37,14 @@ private:
+      * @param tensor_info Vector containing metadata for all tensors in the network
+      * @param node_num Total number of nodes in the execution plan
+      */
+-    void simulate(std::vector<TensorInfo *> &tensor_info, int node_num);
++    void simulate(tool::plan_vector<TensorInfo *> &tensor_info, int node_num);
+ 
+     /**
+      * @brief Simulates memory allocation with priority to internal RAM
+      * @param tensor_info Vector containing tensor metadata
+      * @param node_num Total computation nodes in the network
+      */
+-    void simulate_with_internal_memory(std::vector<TensorInfo *> &tensor_info, int node_num);
++    void simulate_with_internal_memory(tool::plan_vector<TensorInfo *> &tensor_info, int node_num);
+ 
+     /**
+      * @brief Releases memory occupied by a specific tensor and returns it to free list
+@@ -54,8 +54,8 @@ private:
+      * @return MemoryChunk* Pointer to the freed memory block
+      */
+     MemoryChunk *free_tensor(TensorInfo *tensor,
+-                             std::list<MemoryChunk *> &memory_list,
+-                             std::list<MemoryChunk *> &free_list);
++                             MemoryChunkList &memory_list,
++                             MemoryChunkList &free_list);
+ 
+     /**
+      * @brief Allocates memory for a tensor from specified memory pool
 @@ -110,7 +110,7 @@ public:
       * @return bool True if successful allocation, false if memory insufficient
       */
@@ -408,11 +553,11 @@ index 7f249d9..bc50659 100644
 +               dl::module::ExecutionPlan &execution_plan,
                 ModelContext *context,
                 const std::map<std::string, std::vector<int>> &input_shapes = {}) override;
-
+ 
 diff --git a/dl/model/include/dl_model_base.hpp b/dl/model/include/dl_model_base.hpp
 --- a/dl/model/include/dl_model_base.hpp
 +++ b/dl/model/include/dl_model_base.hpp
-@@ -47,8 +47,9 @@
+@@ -47,8 +47,9 @@ class Model {
  private:
      fbs::FbsLoader *m_fbs_loader = nullptr; /*!< The instance of flatbuffers Loader */
      fbs::FbsModel *m_fbs_model = nullptr;   /*!< The instance of flatbuffers Model */
@@ -424,9 +569,9 @@ diff --git a/dl/model/include/dl_model_base.hpp b/dl/model/include/dl_model_base
      ModelContext *m_model_context = nullptr;       /*!< The pointer of model context */
      std::map<std::string, TensorBase *> m_inputs;  /*!< The map of model input's name and TensorBase */
      std::map<std::string, TensorBase *> m_outputs; /*!< The map of model output's name and TensorBase */
-@@ -59,6 +60,14 @@
+@@ -59,6 +60,14 @@ private:
      size_t m_psram_size;                           /*!< PSRAM usage */
-
+ 
  public:
 +    /**
 +     * @brief HardwareOne: every Model this tree's code creates is a metadata block
@@ -437,25 +582,13 @@ diff --git a/dl/model/include/dl_model_base.hpp b/dl/model/include/dl_model_base
 +    DL_METADATA_NEW_DELETE(Model, alignof(Model))
 +
      Model() {}
-
+ 
      /**
-@@ -271,6 +280,12 @@
-      *
-      * @param mode  Runtime mode.
+@@ -309,6 +318,19 @@ public:
       */
-+#if CONFIG_HW1_STT_MODEL_LOCAL_PREPARE
-+    // Synchronous, owner-only argument preparation. Does not execute arithmetic
-+    // in non-Conv modules (including RequantizeLinear). No process-global state.
-+    void prepare_args(runtime_mode_t mode = RUNTIME_MODE_AUTO);
-+#endif
-+
-     virtual void run(runtime_mode_t mode = RUNTIME_MODE_SINGLE_CORE);
-
-     /**
-@@ -310,6 +325,19 @@
      virtual void run(int stage_num, int stage_index, runtime_mode_t mode = RUNTIME_MODE_SINGLE_CORE);
-
-     /**
+ 
++    /**
 +     * @brief HardwareOne: name of execution-plan module i (may be null), nullptr out of range.
 +     */
 +    const char *module_name(int i) const
@@ -468,11 +601,10 @@ diff --git a/dl/model/include/dl_model_base.hpp b/dl/model/include/dl_model_base
 +     */
 +    int module_count() const { return (int)m_execution_plan.size(); }
 +
-+    /**
+     /**
       * @brief Minimize the model.
       */
-     void minimize();
-@@ -447,6 +475,25 @@
+@@ -447,6 +469,52 @@ public:
       * @return fbs::FbsModel *
       */
      virtual fbs::FbsModel *get_fbs_model() { return m_fbs_model; }
@@ -495,11 +627,37 @@ diff --git a/dl/model/include/dl_model_base.hpp b/dl/model/include/dl_model_base
 +            *internal = info.internal;
 +        }
 +    }
++
++    /**
++     * @brief HardwareOne: zero the activation arena. Between runs it still holds the last run's
++     *        activations and quantized input; every run writes all of it again before reading it.
++     */
++    void clear_arena()
++    {
++        if (m_model_context) {
++            m_model_context->root_reset();
++        }
++    }
++
++    /**
++     * @brief HardwareOne: the PSRAM part of the activation arena (nullptr and 0 without one). A run
++     *        reads nothing an earlier run left in it (only the input its caller writes), so between
++     *        runs it is scratch memory for its owner. A prepare pass (dl_module_conv.hpp) must come
++     *        before the input is written: a later tensor shares the input's place in the arena.
++     */
++    void get_psram_arena(void **root, size_t *bytes)
++    {
++        mem_info_t info = {};
++        if (m_model_context) {
++            m_model_context->get_variable_memory_size(info);
++        }
++        *root = m_model_context ? m_model_context->get_psram_root() : nullptr;
++        *bytes = *root ? info.psram : 0;
++    }
  };
-
+ 
  } // namespace dl
 diff --git a/dl/model/include/dl_model_context.hpp b/dl/model/include/dl_model_context.hpp
-index b3be0e7..31bccbf 100644
 --- a/dl/model/include/dl_model_context.hpp
 +++ b/dl/model/include/dl_model_context.hpp
 @@ -12,17 +12,22 @@ namespace dl {
@@ -513,7 +671,7 @@ index b3be0e7..31bccbf 100644
 +    using TensorList = tool::meta_vector<TensorBase *, tool::MetadataKind::List>;
 +    TensorList m_variables;  /*!< Variable tensors of model, the first one is nullptr */
 +    TensorList m_parameters; /*!< Parameters of model, the first one is nullptr */
-
+ 
  private:
      void *m_psram_root;                      /*!< PSRAM root pointer */
      void *m_internal_root;                   /*!< Internal root pointer */
@@ -546,37 +704,149 @@ index b3be0e7..31bccbf 100644
 +        tool::meta_name_map<int> temp;
          m_name2index.swap(temp);
      }
-
+ 
+diff --git a/dl/model/src/dl_memory_manager.cpp b/dl/model/src/dl_memory_manager.cpp
+--- a/dl/model/src/dl_memory_manager.cpp
++++ b/dl/model/src/dl_memory_manager.cpp
+@@ -3,14 +3,14 @@
+ namespace dl {
+ /*oooooooooooooooooo00000000000000000000 TensorInfo 00000000000000000000ooooooooooooooooo*/
+ 
+-TensorInfo::TensorInfo(std::string &name,
++TensorInfo::TensorInfo(const std::string &name,
+                        int time_begin,
+                        int time_end,
+-                       std::vector<int> shape,
++                       const std::vector<int> &shape,
+                        dtype_t dtype,
+                        int exponent,
+                        bool is_internal) :
+-    name(name),
++    name(name.data(), name.size()),
+     time_begin(time_begin),
+     time_end(time_end),
+     dtype(dtype),
+@@ -20,6 +20,7 @@ TensorInfo::TensorInfo(std::string &name,
+     m_follower_dirty_tensor(nullptr),
+     m_follower_clean_tensor(nullptr)
+ {
++    this->shape.reserve(shape.size());
+     if (shape.size() > 0) {
+         this->shape.push_back(shape[0]);
+         this->size = shape[0];
+@@ -155,7 +156,7 @@ MemoryChunk *MemoryChunk::extend(TensorInfo *tensor)
+     return nullptr;
+ }
+ 
+-void print_memory_list(const char *tag, std::list<MemoryChunk *> &memory_list)
++void print_memory_list(const char *tag, MemoryChunkList &memory_list)
+ {
+     for (auto it = memory_list.begin(); it != memory_list.end(); ++it) {
+         std::string name = "";
+@@ -176,7 +177,7 @@ void print_memory_list(const char *tag, std::list<MemoryChunk *> &memory_list)
+     printf("\n");
+ }
+ 
+-void sort_memory_list(std::list<MemoryChunk *> &memory_list)
++void sort_memory_list(MemoryChunkList &memory_list)
+ {
+     // sort free list by size
+     memory_list.sort([](MemoryChunk *a, MemoryChunk *b) {
 diff --git a/dl/model/src/dl_memory_manager_greedy.cpp b/dl/model/src/dl_memory_manager_greedy.cpp
-index 24430c8..297d178 100644
 --- a/dl/model/src/dl_memory_manager_greedy.cpp
 +++ b/dl/model/src/dl_memory_manager_greedy.cpp
-@@ -9,7 +9,7 @@ static const char *TAG = "MemoryManagerGreedy";
+@@ -9,11 +9,11 @@ static const char *TAG = "MemoryManagerGreedy";
  namespace dl {
-
+ 
  bool MemoryManagerGreedy::alloc(fbs::FbsModel *fbs_model,
 -                                std::vector<dl::module::Module *> &execution_plan,
 +                                dl::module::ExecutionPlan &execution_plan,
                                  ModelContext *context,
                                  const std::map<std::string, std::vector<int>> &input_shapes)
  {
-@@ -75,7 +75,7 @@ void MemoryManagerGreedy::free()
+-    std::vector<TensorInfo *> tensor_info;
++    tool::plan_vector<TensorInfo *> tensor_info;
+     // get all tensor info from flatbuffers
+     get_tensor_info_from_fbs(fbs_model, execution_plan, context, tensor_info, input_shapes);
+ 
+@@ -75,9 +75,9 @@ void MemoryManagerGreedy::free()
  }
-
+ 
  void MemoryManagerGreedy::get_tensor_info_from_fbs(fbs::FbsModel *fbs_model,
 -                                                   std::vector<dl::module::Module *> execution_plan,
 +                                                   const dl::module::ExecutionPlan &execution_plan,
                                                     ModelContext *context,
-                                                    std::vector<TensorInfo *> &tensor_info,
+-                                                   std::vector<TensorInfo *> &tensor_info,
++                                                   tool::plan_vector<TensorInfo *> &tensor_info,
                                                     const std::map<std::string, std::vector<int>> &input_shapes)
+ {
+     tensor_info.resize(context->get_variable_count());
+@@ -226,10 +226,10 @@ void MemoryManagerGreedy::get_tensor_info_from_fbs(fbs::FbsModel *fbs_model,
+     }
+ }
+ 
+-void MemoryManagerGreedy::simulate(std::vector<TensorInfo *> &tensor_info, int node_num)
++void MemoryManagerGreedy::simulate(tool::plan_vector<TensorInfo *> &tensor_info, int node_num)
+ {
+-    std::vector<std::vector<TensorInfo *>> node_alloc_tensors(node_num);
+-    std::vector<std::vector<TensorInfo *>> node_free_tensors(node_num);
++    tool::plan_vector<tool::plan_vector<TensorInfo *>> node_alloc_tensors(node_num);
++    tool::plan_vector<tool::plan_vector<TensorInfo *>> node_free_tensors(node_num);
+ 
+     for (int i = 0; i < node_num; i++) {
+         node_alloc_tensors[i] = {};
+@@ -272,14 +272,14 @@ void MemoryManagerGreedy::simulate(std::vector<TensorInfo *> &tensor_info, int n
+     }
+ }
+ 
+-void MemoryManagerGreedy::simulate_with_internal_memory(std::vector<TensorInfo *> &tensor_info, int node_num)
++void MemoryManagerGreedy::simulate_with_internal_memory(tool::plan_vector<TensorInfo *> &tensor_info, int node_num)
+ {
+     MemoryChunk *internal_chunk = new MemoryChunk(this->max_internal_size, true, this->alignment);
+     this->internal_memory_list.push_back(internal_chunk);
+     this->internal_free_list.push_back(internal_chunk);
+ 
+-    std::vector<std::vector<TensorInfo *>> node_alloc_tensors(node_num);
+-    std::vector<std::vector<TensorInfo *>> node_free_tensors(node_num);
++    tool::plan_vector<tool::plan_vector<TensorInfo *>> node_alloc_tensors(node_num);
++    tool::plan_vector<tool::plan_vector<TensorInfo *>> node_free_tensors(node_num);
+ 
+     for (int i = 0; i < node_num; i++) {
+         node_alloc_tensors[i] = {};
+@@ -328,8 +328,8 @@ void MemoryManagerGreedy::simulate_with_internal_memory(std::vector<TensorInfo *
+ }
+ 
+ MemoryChunk *MemoryManagerGreedy::free_tensor(TensorInfo *tensor,
+-                                              std::list<MemoryChunk *> &memory_list,
+-                                              std::list<MemoryChunk *> &free_list)
++                                              MemoryChunkList &memory_list,
++                                              MemoryChunkList &free_list)
+ {
+     MemoryChunk *chunk = nullptr;
+     for (auto it = memory_list.begin(); it != memory_list.end(); ++it) {
+@@ -373,11 +373,11 @@ MemoryChunk *MemoryManagerGreedy::free_tensor(TensorInfo *tensor,
+ MemoryChunk *MemoryManagerGreedy::alloc_tensor(TensorInfo *tensor, int mode)
+ {
+ #if CONFIG_SPIRAM
+-    std::list<MemoryChunk *> &memory_list = this->psram_memory_list;
+-    std::list<MemoryChunk *> &free_list = this->psram_free_list;
++    MemoryChunkList &memory_list = this->psram_memory_list;
++    MemoryChunkList &free_list = this->psram_free_list;
+ #else
+-    std::list<MemoryChunk *> &memory_list = this->internal_memory_list;
+-    std::list<MemoryChunk *> &free_list = this->internal_free_list;
++    MemoryChunkList &memory_list = this->internal_memory_list;
++    MemoryChunkList &free_list = this->internal_free_list;
+ #endif
+     // printf("alloc tensor:%s\n", tensor->name.c_str());
+     MemoryChunk *chunk = nullptr;
 diff --git a/dl/model/src/dl_model_base.cpp b/dl/model/src/dl_model_base.cpp
 --- a/dl/model/src/dl_model_base.cpp
 +++ b/dl/model/src/dl_model_base.cpp
-@@ -10,6 +10,15 @@
- static const char *TAG = "dl::Model";
-
+@@ -11,6 +11,15 @@ static const char *TAG = "dl::Model";
+ 
  namespace dl {
-+
+ 
 +// HardwareOne: layouts prebuilt code depends on. libwakenet constructs dl::Model with its own sizeof
 +// (operator new) and ESP-SR's libdl_lib / libfbs_model construct fbs::FbsModel; metadata
 +// containers (dl_tool_metadata.hpp) must not change either.
@@ -585,18 +855,19 @@ diff --git a/dl/model/src/dl_model_base.cpp b/dl/model/src/dl_model_base.cpp
 +static_assert(sizeof(void *) != 4 || sizeof(ModelContext) == 64, "ModelContext layout changed");
 +static_assert(sizeof(void *) != 4 || sizeof(module::Module) == 40, "Module layout changed");
 +static_assert(sizeof(module::ExecutionPlan) == sizeof(std::vector<module::Module *>), "plan layout changed");
-
++
  Model::Model(const char *rodata_address_or_partition_label_or_path,
               fbs::model_location_type_t location,
-@@ -149,6 +158,7 @@
+              int max_internal_size,
+@@ -149,6 +158,7 @@ esp_err_t Model::load(fbs::FbsModel *fbs_model)
      std::vector<std::string> op_outputs;
-
+ 
      std::vector<std::string> sorted_nodes = m_fbs_model->topological_sort();
 +    m_execution_plan.reserve(sorted_nodes.size()); // HardwareOne: one plan block, no growth copies
      for (int i = 0; i < sorted_nodes.size(); i++) {
          std::string node_name = sorted_nodes[i];
-
-@@ -183,6 +193,9 @@
+ 
+@@ -183,6 +193,9 @@ esp_err_t Model::load(fbs::FbsModel *fbs_model)
                      ret = ESP_FAIL;
                      break;
                  }
@@ -606,7 +877,7 @@ diff --git a/dl/model/src/dl_model_base.cpp b/dl/model/src/dl_model_base.cpp
                  index = m_model_context->add_tensor(op_inputs[j], true, parameter);
              } else {
                  index = m_model_context->add_tensor(op_inputs[j], false, nullptr);
-@@ -209,6 +222,7 @@
+@@ -209,6 +222,7 @@ esp_err_t Model::load(fbs::FbsModel *fbs_model)
                      ret = ESP_FAIL;
                      break;
                  }
@@ -614,25 +885,7 @@ diff --git a/dl/model/src/dl_model_base.cpp b/dl/model/src/dl_model_base.cpp
                  lut_index = m_model_context->add_tensor(lut_name, true, table);
              }
              module->m_inputs_index.push_back(lut_index);
-@@ -257,6 +271,16 @@
-     m_fbs_model->clear_map();
-     delete memory_manager;
- }
-+
-+#if CONFIG_HW1_STT_MODEL_LOCAL_PREPARE
-+void Model::prepare_args(runtime_mode_t mode)
-+{
-+    for (auto *module : m_execution_plan) {
-+        if (!module) break;
-+        module->prepare(m_model_context, mode);
-+    }
-+}
-+#endif
-
- void Model::run(runtime_mode_t mode)
- {
 diff --git a/dl/model/src/dl_model_context.cpp b/dl/model/src/dl_model_context.cpp
-index 171b7fb..949503e 100644
 --- a/dl/model/src/dl_model_context.cpp
 +++ b/dl/model/src/dl_model_context.cpp
 @@ -14,12 +14,11 @@ int ModelContext::add_tensor(const std::string name, bool is_paramter, TensorBas
@@ -650,7 +903,7 @@ index 171b7fb..949503e 100644
          index = iter->second;
          if (is_paramter) {
 @@ -81,8 +80,9 @@ TensorBase *ModelContext::get_tensor(int index)
-
+ 
  TensorBase *ModelContext::get_tensor(const std::string &name)
  {
 -    if (m_name2index.find(name) != m_name2index.end()) {
@@ -662,7 +915,7 @@ index 171b7fb..949503e 100644
          ESP_LOGE(TAG, "Tensor %s not found", name.c_str());
      }
 @@ -92,8 +92,9 @@ TensorBase *ModelContext::get_tensor(const std::string &name)
-
+ 
  int ModelContext::get_tensor_index(const std::string &name)
  {
 -    if (m_name2index.find(name) != m_name2index.end()) {
@@ -674,7 +927,7 @@ index 171b7fb..949503e 100644
          ESP_LOGE(TAG, "Tensor %s not found", name.c_str());
      }
 @@ -103,8 +104,9 @@ int ModelContext::get_tensor_index(const std::string &name)
-
+ 
  int ModelContext::get_variable_index(const std::string &name)
  {
 -    if (m_name2index.find(name) != m_name2index.end()) {
@@ -691,31 +944,23 @@ diff --git a/dl/module/include/dl_module_add.hpp b/dl/module/include/dl_module_a
 @@ -1,4 +1,5 @@
  #pragma once
 +extern "C" int hw1_dl_prepare_mode;  // HardwareOne: prepared-args pass (dl_module_conv.hpp)
-
+ 
  #include "dl_base_add.hpp"
  #include "dl_base_shape.hpp"
-@@ -42,6 +43,11 @@
-
+@@ -42,6 +43,9 @@ public:
+ 
      void forward(ModelContext *context, runtime_mode_t mode)
      {
-+#if !CONFIG_HW1_STT_MODEL_LOCAL_PREPARE
 +        if (hw1_dl_prepare_mode) {
 +            return;  // HardwareOne: the prepare pass only builds Conv args
 +        }
-+#endif
          if (quant_type == QUANT_TYPE_SYMM_8BIT) {
              forward_template<int8_t>(context, mode);
          } else if (quant_type == QUANT_TYPE_SYMM_16BIT) {
 diff --git a/dl/module/include/dl_module_base.hpp b/dl/module/include/dl_module_base.hpp
 --- a/dl/module/include/dl_module_base.hpp
 +++ b/dl/module/include/dl_module_base.hpp
-@@ -1,4 +1,5 @@
- #pragma once
-+#include "sdkconfig.h"
- #include "dl_base.hpp"
- #include "dl_define.hpp"
- #include "dl_model_context.hpp"
-@@ -27,8 +28,9 @@
+@@ -27,8 +27,9 @@ public:
      char *name;                       ///< Name of module
      module_inplace_t inplace;         ///< Inplace type
      quant_type_t quant_type;          ///< Quantization type
@@ -724,10 +969,10 @@ diff --git a/dl/module/include/dl_module_base.hpp b/dl/module/include/dl_module_
 +    // HardwareOne: metadata vectors (dl_tool_metadata.hpp, MetadataKind::Index), same layout as std::vector<int>.
 +    tool::meta_vector<int, tool::MetadataKind::Index> m_inputs_index;  ///< Tensor index of model's tensors that used for inputs
 +    tool::meta_vector<int, tool::MetadataKind::Index> m_outputs_index; ///< Tensor index of model's tensors that used for outputs
-
+ 
      /**
       * @brief Construct a new Module object.
-@@ -49,28 +51,19 @@
+@@ -49,28 +50,19 @@ public:
      /**
       * @brief Allocate the module object itself.
       *
@@ -751,7 +996,7 @@ diff --git a/dl/module/include/dl_module_base.hpp b/dl/module/include/dl_module_
 -     */
 -    void operator delete(void *ptr) { heap_caps_free(ptr); }
 +    DL_METADATA_NEW_DELETE(Module, 16)
-
+ 
      /**
       * @brief Get the tensor index of this module's outputs
       *
@@ -759,26 +1004,13 @@ diff --git a/dl/module/include/dl_module_base.hpp b/dl/module/include/dl_module_
       */
 -    virtual std::vector<int> get_outputs_index() { return m_outputs_index; }
 +    virtual std::vector<int> get_outputs_index() { return {m_outputs_index.begin(), m_outputs_index.end()}; }
-
+ 
      /**
       * @brief Whether this module uses a lookup table (LUT) as an extra input.
-@@ -97,6 +90,12 @@
-      * @param mode    Runtime mode, default is RUNTIME_MODE_AUTO
-      */
-     virtual void forward(ModelContext *context, runtime_mode_t mode = RUNTIME_MODE_AUTO) = 0;
-+
-+#if CONFIG_HW1_STT_MODEL_LOCAL_PREPARE
-+    // Preparing one model must never change normal execution in another.
-+    // Only modules with reusable arguments override this; all others do nothing.
-+    virtual void prepare(ModelContext *context, runtime_mode_t mode = RUNTIME_MODE_AUTO) {}
-+#endif
-
-     /**
-      * @brief Run the module, Low-level interface for base layer and multi-core processing
-@@ -170,5 +169,11 @@
+@@ -170,5 +162,11 @@ public:
   */
  void module_forward_dual_core(Module *op, void *args1, void *args2);
-
+ 
 +/**
 + * @brief HardwareOne: a model's execution plan, a metadata vector (MetadataKind::List) with the
 + *        layout of std::vector<Module *>.
@@ -790,7 +1022,7 @@ diff --git a/dl/module/include/dl_module_base.hpp b/dl/module/include/dl_module_
 diff --git a/dl/module/include/dl_module_conv.hpp b/dl/module/include/dl_module_conv.hpp
 --- a/dl/module/include/dl_module_conv.hpp
 +++ b/dl/module/include/dl_module_conv.hpp
-@@ -5,10 +5,16 @@
+@@ -5,11 +5,17 @@
  #include "dl_base_conv_select.hpp"
  #include "dl_base_depthwise_conv2d.hpp"
  #include "dl_module_base.hpp"
@@ -799,15 +1031,16 @@ diff --git a/dl/module/include/dl_module_conv.hpp b/dl/module/include/dl_module_
  #include <typeinfo>
  #include "freertos/FreeRTOS.h"
  #include "freertos/task.h"
-+
+ 
 +// HardwareOne: prepared-args pass (defined in dl_module_base.cpp). While hw1_dl_prepare_mode is set,
 +// Conv layers only build and keep their args and Add, LUT and Relu return; hw1_dl_prepare_gen tags one pass.
 +extern "C" int hw1_dl_prepare_mode;
 +extern "C" uint32_t hw1_dl_prepare_gen;
-
++
  namespace dl {
  namespace module {
-@@ -19,13 +25,48 @@
+ 
+@@ -19,13 +25,27 @@ namespace module {
   */
  class Conv : public Module {
  private:
@@ -821,27 +1054,6 @@ diff --git a/dl/module/include/dl_module_conv.hpp b/dl/module/include/dl_module_
 -    std::vector<int> m_pads;      /*!< pads size needed in [top, bottom, left, right] of this operation */
 +    tool::meta_vector<int, tool::MetadataKind::Index> m_pads; /*!< pads size needed in [top, bottom, left, right] of this operation */
      bool is_bias_reseted;
-+#if CONFIG_HW1_STT_MODEL_LOCAL_PREPARE
-+    // One owner per model, as required by forward(). Usually occupies existing
-+    // padding beside is_bias_reseted; no separate worker or allocation.
-+    bool m_prepare_call = false;
-+#endif
-+    bool hw1_preparing() const {
-+#if CONFIG_HW1_STT_MODEL_LOCAL_PREPARE
-+        return m_prepare_call;
-+#else
-+        return hw1_dl_prepare_mode != 0;
-+#endif
-+    }
-+    uint32_t hw1_generation() const {
-+#if CONFIG_HW1_STT_MODEL_LOCAL_PREPARE
-+        // An armed block is private to this Conv and consumed once. prepare()
-+        // invalidates it first, including after cancellation/allocation failure.
-+        return 1;
-+#else
-+        return hw1_dl_prepare_gen;
-+#endif
-+    }
      dl_kernel_erased_t m_fn[3] = {};
 +    // HardwareOne: this layer's args, built in the prepare pass that runs every layer's setup back to
 +    // back before the model runs (so the setup code and tensor metadata are fetched into the caches once,
@@ -856,22 +1068,22 @@ diff --git a/dl/module/include/dl_module_conv.hpp b/dl/module/include/dl_module_
 +    };
 +    Prepared *m_prepared = nullptr;
 +    size_t m_prepared_bytes = 0;
-
+ 
      void reset_bias(ModelContext *context)
      {
-@@ -73,7 +114,7 @@
+@@ -73,7 +93,7 @@ public:
       * @brief Destroy the Conv object.
       *
       */
 -    ~Conv() {}
 +    ~Conv() { tool::metadata_free(m_prepared); }
-
+ 
      /**
       * @brief Calculate the output shape
-@@ -114,8 +155,100 @@
+@@ -114,8 +134,87 @@ public:
          }
      }
-
+ 
 +    void run_tasks(base::ConvArgsType *args, int task_size)
 +    {
 +        if (task_size == 1) { // single task
@@ -900,7 +1112,7 @@ diff --git a/dl/module/include/dl_module_conv.hpp b/dl/module/include/dl_module_
 +    // slices only until run_tasks joins. There is no global scratch pool.
 +    void *prepare_factor_scratch(TensorBase *output, TensorBase *filter)
 +    {
-+        if (!hw1_preparing() || !filter->exponent.is_per_channel() || output->shape.empty()) return nullptr;
++        if (!hw1_dl_prepare_mode || !filter->exponent.is_per_channel() || output->shape.empty()) return nullptr;
 +        const size_t bytes = tool::get_aligned_size(size_t(output->shape.back()) * base::conv_feature_bytes(quant_type));
 +        if (!reserve_prepared(sizeof(Prepared) + bytes)) return nullptr;
 +        m_prepared->gen = 0;
@@ -937,26 +1149,13 @@ diff --git a/dl/module/include/dl_module_conv.hpp b/dl/module/include/dl_module_
 +                    factors + (static_cast<const uint8_t *>(p->args[k].tie_filter_channel_factor) - base_factor);
 +            }
 +        }
-+        p->gen = hw1_generation();
++        p->gen = hw1_dl_prepare_gen;
 +        return true;
 +    }
 +
-+#if CONFIG_HW1_STT_MODEL_LOCAL_PREPARE
-+    void prepare(ModelContext *context, runtime_mode_t mode = RUNTIME_MODE_AUTO) override
-+    {
-+        if (m_prepared) m_prepared->gen = 0;
-+        struct Preparing {
-+            bool &flag;
-+            explicit Preparing(bool &value) : flag(value) { assert(!flag); flag = true; }
-+            ~Preparing() { flag = false; }
-+        } preparing(m_prepare_call);
-+        forward(context, mode);
-+    }
-+#endif
-+
      void forward(ModelContext *context, runtime_mode_t mode = RUNTIME_MODE_AUTO)
      {
-+        if (!hw1_preparing() && m_prepared && m_prepared->gen == hw1_generation()) {
++        if (!hw1_dl_prepare_mode && m_prepared && m_prepared->gen == hw1_dl_prepare_gen) {
 +            // HardwareOne: args from this inference's prepare pass, for the same tensors; used once.
 +            Prepared *p = m_prepared;
 +            p->gen = 0;
@@ -967,17 +1166,17 @@ diff --git a/dl/module/include/dl_module_conv.hpp b/dl/module/include/dl_module_
 +            }
 +        }
          reset_bias(context);
-
+ 
          TensorBase *input = context->get_tensor(m_inputs_index[0]);
-@@ -126,6 +259,7 @@
+@@ -126,6 +225,7 @@ public:
          }
          TensorBase *output = context->get_tensor(m_outputs_index[0]);
-
+ 
 +        void *factor_scratch = prepare_factor_scratch(output, filter);
          base::ConvOpArgs m_args(output,
                                  input,
                                  m_pads,
-@@ -137,19 +271,20 @@
+@@ -137,19 +237,20 @@ public:
                                  this->activation,
                                  nullptr,
                                  mode,
@@ -995,19 +1194,17 @@ diff --git a/dl/module/include/dl_module_conv.hpp b/dl/module/include/dl_module_
 -            module_forward_dual_core(this, (void *)&m_args.get_args(0), (void *)&m_args.get_args(1));
 -        } else {
 -            ESP_LOGE("Conv", "Only support task size is 1 or 2, currently task size is %d", task_size);
--        }
-+        if (hw1_preparing()) {
++        if (hw1_dl_prepare_mode) {
 +            if (!keep_prepared(m_args, task_size, input, output) && m_prepared) {
 +                m_prepared->gen = 0;  // no memory: this layer builds its args when it runs
 +            }
 +            return;
-+        }
+         }
 +        run_tasks(&m_args.get_args(0), task_size);
      }
-
+ 
      /**
 diff --git a/dl/module/include/dl_module_gemm.hpp b/dl/module/include/dl_module_gemm.hpp
-index 00c34a8..18bb87f 100644
 --- a/dl/module/include/dl_module_gemm.hpp
 +++ b/dl/module/include/dl_module_gemm.hpp
 @@ -100,8 +100,8 @@ public:
@@ -1021,12 +1218,30 @@ index 00c34a8..18bb87f 100644
                                  1 /*group*/,
                                  bias,
                                  this->activation,
+diff --git a/dl/module/include/dl_module_global_average_pool.hpp b/dl/module/include/dl_module_global_average_pool.hpp
+--- a/dl/module/include/dl_module_global_average_pool.hpp
++++ b/dl/module/include/dl_module_global_average_pool.hpp
+@@ -1,4 +1,5 @@
+ #pragma once
++extern "C" int hw1_dl_prepare_mode;  // HardwareOne: prepared-args pass (dl_module_conv.hpp)
+ 
+ #include "dl_base_avg_pool2d.hpp"
+ #include "dl_module_base.hpp"
+@@ -38,6 +39,9 @@ public:
+ 
+     void forward(ModelContext *context, runtime_mode_t mode)
+     {
++        if (hw1_dl_prepare_mode) {
++            return;  // HardwareOne: the prepare pass only builds Conv args
++        }
+         if (quant_type == QUANT_TYPE_SYMM_8BIT) {
+             forward_template<int8_t>(context, mode);
+         } else if (quant_type == QUANT_TYPE_SYMM_16BIT) {
 diff --git a/dl/module/include/dl_module_insert_zeros.hpp b/dl/module/include/dl_module_insert_zeros.hpp
-index ebe4c42..492fd8a 100644
 --- a/dl/module/include/dl_module_insert_zeros.hpp
 +++ b/dl/module/include/dl_module_insert_zeros.hpp
 @@ -109,10 +109,10 @@ public:
-
+ 
          T *output_data = output->get_element_ptr<T>();
          T *input_data = input->get_element_ptr<T>();
 -        const std::vector<int> &input_shape = input->get_shape();
@@ -1041,13 +1256,12 @@ index ebe4c42..492fd8a 100644
          int channels = input_shape[input_shape.size() - 1]; // Last dimension is channels in NHWC
          int num_spatial_dims = input_shape.size() - 2;
 diff --git a/dl/module/include/dl_module_lp_normalization.hpp b/dl/module/include/dl_module_lp_normalization.hpp
-index 8ae9bdc..896225c 100644
 --- a/dl/module/include/dl_module_lp_normalization.hpp
 +++ b/dl/module/include/dl_module_lp_normalization.hpp
 @@ -64,7 +64,7 @@ public:
          float *input_ptr = input->get_element_ptr<float>();
          float *output_ptr = output->get_element_ptr<float>();
-
+ 
 -        std::vector<int> &shape = input->shape;
 +        const auto &shape = input->shape; // HardwareOne: TensorBase::shape is a metadata vector
          int dims = shape.size();
@@ -1056,7 +1270,7 @@ index 8ae9bdc..896225c 100644
 @@ -127,7 +127,7 @@ public:
          int8_t *input_ptr = input->get_element_ptr<int8_t>();
          int8_t *output_ptr = output->get_element_ptr<int8_t>();
-
+ 
 -        std::vector<int> &shape = input->shape;
 +        const auto &shape = input->shape; // HardwareOne: TensorBase::shape is a metadata vector
          int dims = shape.size();
@@ -1065,7 +1279,7 @@ index 8ae9bdc..896225c 100644
 @@ -198,7 +198,7 @@ public:
          int16_t *input_ptr = input->get_element_ptr<int16_t>();
          int16_t *output_ptr = output->get_element_ptr<int16_t>();
-
+ 
 -        std::vector<int> &shape = input->shape;
 +        const auto &shape = input->shape; // HardwareOne: TensorBase::shape is a metadata vector
          int dims = shape.size();
@@ -1077,23 +1291,20 @@ diff --git a/dl/module/include/dl_module_lut.hpp b/dl/module/include/dl_module_l
 @@ -1,4 +1,5 @@
  #pragma once
 +extern "C" int hw1_dl_prepare_mode;  // HardwareOne: prepared-args pass (dl_module_conv.hpp)
-
+ 
  #include "dl_base_lut.hpp"
  #include "dl_module_base.hpp"
-@@ -36,6 +37,11 @@
-
+@@ -36,6 +37,9 @@ public:
+ 
      void forward(ModelContext *context, runtime_mode_t mode)
      {
-+#if !CONFIG_HW1_STT_MODEL_LOCAL_PREPARE
 +        if (hw1_dl_prepare_mode) {
 +            return;  // HardwareOne: the prepare pass only builds Conv args
 +        }
-+#endif
          assert(m_inputs_index.size() >= 2);
          TensorBase *input = context->get_tensor(m_inputs_index[0]);
          TensorBase *table = context->get_tensor(m_inputs_index.back());
 diff --git a/dl/module/include/dl_module_matmul.hpp b/dl/module/include/dl_module_matmul.hpp
-index ce4da7f..0303872 100644
 --- a/dl/module/include/dl_module_matmul.hpp
 +++ b/dl/module/include/dl_module_matmul.hpp
 @@ -191,8 +191,8 @@ public:
@@ -1104,7 +1315,7 @@ index ce4da7f..0303872 100644
 -        const std::vector<int> &input1_shape = input1->get_shape();
 +        const auto &input0_shape = input0->get_shape(); // HardwareOne: no copy of the metadata vector
 +        const auto &input1_shape = input1->get_shape(); // HardwareOne: no copy of the metadata vector
-
+ 
          assert(m_activation == Linear || m_activation == ReLU);
          assert(input0_shape.size() >= 1 && input0_shape.size() <= 4);
 @@ -313,8 +313,8 @@ public:
@@ -1162,35 +1373,70 @@ index ce4da7f..0303872 100644
                                                  1 /*group*/,
                                                  nullptr /*bias*/,
                                                  m_activation,
+diff --git a/dl/module/include/dl_module_mul.hpp b/dl/module/include/dl_module_mul.hpp
+--- a/dl/module/include/dl_module_mul.hpp
++++ b/dl/module/include/dl_module_mul.hpp
+@@ -1,4 +1,5 @@
+ #pragma once
++extern "C" int hw1_dl_prepare_mode;  // HardwareOne: prepared-args pass (dl_module_conv.hpp)
+ #include "dl_base_mul.hpp"
+ #include "dl_base_shape.hpp"
+ #include "dl_module_base.hpp"
+@@ -41,6 +42,9 @@ public:
+ 
+     void forward(ModelContext *context, runtime_mode_t mode)
+     {
++        if (hw1_dl_prepare_mode) {
++            return;  // HardwareOne: the prepare pass only builds Conv args
++        }
+         if (quant_type == QUANT_TYPE_SYMM_8BIT) {
+             forward_template<int8_t>(context, mode);
+         } else if (quant_type == QUANT_TYPE_SYMM_16BIT) {
 diff --git a/dl/module/include/dl_module_relu.hpp b/dl/module/include/dl_module_relu.hpp
 --- a/dl/module/include/dl_module_relu.hpp
 +++ b/dl/module/include/dl_module_relu.hpp
 @@ -1,4 +1,5 @@
  #pragma once
 +extern "C" int hw1_dl_prepare_mode;  // HardwareOne: prepared-args pass (dl_module_conv.hpp)
-
+ 
  #include "dl_module_base.hpp"
  #include "dl_module_lut.hpp"
-@@ -41,6 +42,11 @@
-
+@@ -41,6 +42,9 @@ public:
+ 
      void forward(ModelContext *context, runtime_mode_t mode = RUNTIME_MODE_AUTO)
      {
-+#if !CONFIG_HW1_STT_MODEL_LOCAL_PREPARE
 +        if (hw1_dl_prepare_mode) {
 +            return;  // HardwareOne: the prepare pass only builds Conv args
 +        }
-+#endif
          if (quant_type == QUANT_TYPE_SYMM_8BIT) {
              forward_template<int8_t>(context, mode);
          } else if (quant_type == QUANT_TYPE_SYMM_16BIT) {
+diff --git a/dl/module/include/dl_module_sigmoid.hpp b/dl/module/include/dl_module_sigmoid.hpp
+--- a/dl/module/include/dl_module_sigmoid.hpp
++++ b/dl/module/include/dl_module_sigmoid.hpp
+@@ -1,4 +1,5 @@
+ #pragma once
++extern "C" int hw1_dl_prepare_mode;  // HardwareOne: prepared-args pass (dl_module_conv.hpp)
+ 
+ #include "dl_math.hpp"
+ #include "dl_module_base.hpp"
+@@ -41,6 +42,9 @@ public:
+ 
+     void forward(ModelContext *context, runtime_mode_t mode)
+     {
++        if (hw1_dl_prepare_mode) {
++            return;  // HardwareOne: the prepare pass only builds Conv args
++        }
+         TensorBase *input = context->get_tensor(m_inputs_index[0]);
+         TensorBase *output = context->get_tensor(m_outputs_index[0]);
+ 
 diff --git a/dl/module/src/dl_module_base.cpp b/dl/module/src/dl_module_base.cpp
-index a29135c..37a4c01 100644
 --- a/dl/module/src/dl_module_base.cpp
 +++ b/dl/module/src/dl_module_base.cpp
 @@ -5,6 +5,14 @@
  #include <freertos/semphr.h>
  #include <string.h>
-
+ 
 +// HardwareOne: prepared-args pass state (dl_module_conv.hpp). An application sets hw1_dl_prepare_mode
 +// around one pass over a model's stages and gives every pass a new nonzero hw1_dl_prepare_gen; with both
 +// left 0 every module runs as upstream.
@@ -1200,13 +1446,44 @@ index a29135c..37a4c01 100644
 +uint32_t hw1_dl_prepare_gen = 0;
 +
  using namespace dl;
-
+ 
  namespace dl {
 diff --git a/dl/tensor/include/dl_tensor_base.hpp b/dl/tensor/include/dl_tensor_base.hpp
-index 4927822..59e3711 100644
 --- a/dl/tensor/include/dl_tensor_base.hpp
 +++ b/dl/tensor/include/dl_tensor_base.hpp
-@@ -31,16 +31,16 @@ private:
+@@ -5,6 +5,7 @@
+ #include <stdarg.h>
+ #include <stdio.h>
+ #include <stdlib.h>
++#include <string.h>
+ #include <string>
+ #include <type_traits>
+ #include <variant>
+@@ -22,36 +23,81 @@ namespace dl {
+  * A failed per-channel allocation leaves the object in the invalid state reported by is_valid();
+  * such an object describes no scale at all and its tensor must be rejected by the caller.
+  */
++/**
++ * HardwareOne: set (nonzero) by an application while it constructs a model whose per-channel exponent
++ * arrays may be kept as int8_t (one quarter of the memory; a 395-node int8 graph keeps 150,000 of
++ * them). Zero, the default, keeps upstream's int arrays: objects that prebuilt code built against the
++ * upstream header reads element by element (ESP-SR) are never compact. Defined in dl_tensor_base.cpp.
++ */
++extern "C" int hw1_dl_compact_exponents;
++
+ class ExponentInfo {
+ private:
+     int m_exponent;
+-    int *m_exponents;
+-    int m_size; ///< channel count, 0 marks a failed per-channel allocation
++    int *m_exponents; ///< per-channel array; bit 0 set: a compact int8_t array at the address without it
++    int m_size;       ///< channel count, 0 marks a failed per-channel allocation
++
++    // HardwareOne: the compact form is marked in the pointer, never in m_size: prebuilt libfbs_model
++    // checks the channel count of every parameter tensor it creates against the model file.
++    bool compact() const { return (reinterpret_cast<uintptr_t>(m_exponents) & 1u) != 0; }
++    void *block() const { return reinterpret_cast<void *>(reinterpret_cast<uintptr_t>(m_exponents) & ~uintptr_t(1)); }
+ 
      /**
       * @brief Take a copy of a per-channel exponent array.
       *
@@ -1216,6 +1493,8 @@ index 4927822..59e3711 100644
 +     * HardwareOne: a metadata block (dl_tool_metadata.hpp, MetadataKind::Exponent, 16-byte
 +     * aligned as upstream's malloc_aligned): the installed metadata allocator places it (HardwareOne:
 +     * an explicit PSRAM request); with none installed, upstream's malloc_aligned(MALLOC_CAP_DEFAULT).
++     * While hw1_dl_compact_exponents is set and every value fits, the copy is an int8_t array (4-byte
++     * aligned, its address tagged in bit 0); get() returns the same values either way.
       *
       * Falling back to per-tensor mode on failure is not possible: m_exponent holds no scale that
       * describes per-channel data, so the object is marked invalid instead.
@@ -1223,47 +1502,131 @@ index 4927822..59e3711 100644
      void copy_exponents(const int *exponents, int size)
      {
 -        m_exponents = static_cast<int *>(tool::malloc_aligned(size * sizeof(int), MALLOC_CAP_DEFAULT));
-+        m_exponents = static_cast<int *>(tool::metadata_alloc(size * sizeof(int), 16, tool::MetadataKind::Exponent));
++        bool small = hw1_dl_compact_exponents != 0;
++        for (int i = 0; small && i < size; i++) {
++            small = exponents[i] >= INT8_MIN && exponents[i] <= INT8_MAX;
++        }
++        m_exponents = static_cast<int *>(
++            small ? tool::metadata_alloc(size, 4, tool::MetadataKind::Exponent)
++                  : tool::metadata_alloc(size * sizeof(int), 16, tool::MetadataKind::Exponent));
          if (!m_exponents) {
              ESP_LOGE("ExponentInfo", "Failed to alloc %d per-channel exponents.", size);
              m_size = 0;
-@@ -78,7 +78,7 @@ public:
+             return;
+         }
+         m_size = size;
++        if (small) {
++            int8_t *bytes = reinterpret_cast<int8_t *>(m_exponents);
++            for (int i = 0; i < size; i++) {
++                bytes[i] = static_cast<int8_t>(exponents[i]);
++            }
++            m_exponents = reinterpret_cast<int *>(reinterpret_cast<uintptr_t>(m_exponents) | 1u);
++            return;
++        }
+         for (int i = 0; i < size; i++) {
+             m_exponents[i] = exponents[i];
+         }
+     }
+ 
++    /** @brief HardwareOne: take a copy of another object's per-channel array, in its representation. */
++    void copy_array(const ExponentInfo &other)
++    {
++        const size_t bytes = other.compact() ? static_cast<size_t>(other.m_size) : other.m_size * sizeof(int);
++        void *copy = tool::metadata_alloc(bytes, other.compact() ? 4 : 16, tool::MetadataKind::Exponent);
++        if (!copy) {
++            ESP_LOGE("ExponentInfo", "Failed to alloc %d per-channel exponents.", other.m_size);
++            m_exponents = nullptr;
++            m_size = 0;
++            return;
++        }
++        memcpy(copy, other.block(), bytes);
++        m_size = other.m_size;
++        m_exponents = reinterpret_cast<int *>(reinterpret_cast<uintptr_t>(copy) | (other.compact() ? 1u : 0u));
++    }
++
+ public:
+     /**
+      * @brief Construct a per-tensor ExponentInfo with a single exponent value.
+@@ -78,7 +124,7 @@ public:
       */
      ~ExponentInfo()
      {
 -        heap_caps_free(m_exponents);
-+        tool::metadata_free(m_exponents);
++        tool::metadata_free(block());
          m_exponents = nullptr;
      }
-
-@@ -101,7 +101,7 @@ public:
+ 
+@@ -89,7 +135,7 @@ public:
+     ExponentInfo(const ExponentInfo &other) : m_exponent(other.m_exponent), m_exponents(nullptr), m_size(other.m_size)
+     {
+         if (other.m_exponents && other.m_size > 1) {
+-            copy_exponents(other.m_exponents, other.m_size);
++            copy_array(other);
+         }
+     }
+ 
+@@ -101,12 +147,12 @@ public:
      ExponentInfo &operator=(const ExponentInfo &other)
      {
          if (this != &other) {
 -            heap_caps_free(m_exponents);
-+            tool::metadata_free(m_exponents);
++            tool::metadata_free(block());
              m_exponents = nullptr;
              m_exponent = other.m_exponent;
              m_size = other.m_size;
-@@ -131,7 +131,7 @@ public:
+             if (other.m_exponents && other.m_size > 1) {
+-                copy_exponents(other.m_exponents, other.m_size);
++                copy_array(other);
+             }
+         }
+         return *this;
+@@ -131,7 +177,7 @@ public:
      ExponentInfo &operator=(ExponentInfo &&other) noexcept
      {
          if (this != &other) {
 -            heap_caps_free(m_exponents);
-+            tool::metadata_free(m_exponents);
++            tool::metadata_free(block());
              m_exponent = other.m_exponent;
              m_exponents = other.m_exponents;
              m_size = other.m_size;
-@@ -148,7 +148,7 @@ public:
+@@ -148,7 +194,7 @@ public:
       */
      ExponentInfo &operator=(int value)
      {
 -        heap_caps_free(m_exponents);
-+        tool::metadata_free(m_exponents);
++        tool::metadata_free(block());
          m_exponents = nullptr;
          m_size = 1;
          m_exponent = value;
-@@ -293,6 +293,24 @@ const char *quant_type_to_string(quant_type_t type);
+@@ -166,7 +212,7 @@ public:
+         if (ch < 0 || !m_exponents) {
+             return m_exponent;
+         }
+-        return m_exponents[ch];
++        return compact() ? static_cast<const int8_t *>(block())[ch] : m_exponents[ch];
+     }
+ 
+     /**
+@@ -198,7 +244,8 @@ public:
+      * @brief Get pointer to exponent data.
+      * @return Pointer to per-channel exponents array if available, otherwise pointer to per-tensor exponent.
+      */
+-    const int *data() const { return m_exponents ? m_exponents : &m_exponent; }
++    // HardwareOne: nullptr for a compact (int8_t) per-channel array, which has no int view (use get()).
++    const int *data() const { return !m_exponents ? &m_exponent : compact() ? nullptr : m_exponents; }
+ 
+     /**
+      * @brief Compare two ExponentInfo objects for equality.
+@@ -221,7 +268,7 @@ public:
+             return false;
+         }
+         for (int i = 0; i < this->m_size; i++) {
+-            if (this->m_exponents[i] != other.m_exponents[i]) {
++            if (this->get(i) != other.get(i)) {
+                 return false;
+             }
+         }
+@@ -293,6 +340,24 @@ const char *quant_type_to_string(quant_type_t type);
  /**
   * @brief Convert vector to string
   */
@@ -1288,7 +1651,7 @@ index 4927822..59e3711 100644
  template <typename T>
  std::string vector_to_string(std::vector<T> shape)
  {
-@@ -323,11 +341,11 @@ std::string vector_to_string(std::vector<T> shape)
+@@ -323,11 +388,11 @@ std::string vector_to_string(std::vector<T> shape)
  class TensorBase {
  public:
      int size;                     ///< size of element including padding
@@ -1302,7 +1665,7 @@ index 4927822..59e3711 100644
      void *data;                   ///< data pointer
      void *cache;                  ///< cache pointer， used for preload and do not need to free
      uint32_t caps;                ///< flags indicating the type of memory
-@@ -373,32 +391,18 @@ public:
+@@ -373,32 +438,18 @@ public:
      /**
       * @brief Destroy the TensorBase object.
       */
@@ -1314,7 +1677,7 @@ index 4927822..59e3711 100644
 -        }
 -    }
 +    virtual ~TensorBase();  // HardwareOne: out of line (dl_tensor_base.cpp), see there
-
+ 
      /**
       * @brief Allocate the tensor object itself.
       *
@@ -1339,26 +1702,35 @@ index 4927822..59e3711 100644
       */
 -    void operator delete(void *ptr) { heap_caps_free(ptr); }
 +    DL_METADATA_NEW_DELETE(Tensor, 16)
-
+ 
      /**
       * @brief Assign tensor to this tensor
-@@ -514,7 +518,7 @@ public:
+@@ -514,7 +565,7 @@ public:
       *
       * @return std::vector<int> the shape of Tensor
       */
 -    const std::vector<int> &get_shape() const { return this->shape; }
 +    const meta_shape &get_shape() const { return this->shape; }
-
+ 
      /**
       * @brief Set the shape of Tensor.
 diff --git a/dl/tensor/src/dl_tensor_base.cpp b/dl/tensor/src/dl_tensor_base.cpp
-index b85a864..b163783 100644
 --- a/dl/tensor/src/dl_tensor_base.cpp
 +++ b/dl/tensor/src/dl_tensor_base.cpp
-@@ -153,6 +153,24 @@ const char *quant_type_to_string(quant_type_t type)
+@@ -7,6 +7,9 @@
+ #include <cstring>
+ #include <iostream>
+ #include <type_traits>
++// HardwareOne: see dl_tensor_base.hpp (ExponentInfo).
++int hw1_dl_compact_exponents = 0;
++
+ namespace dl {
+ 
+ static bool is_nan(float value)
+@@ -153,6 +156,24 @@ const char *quant_type_to_string(quant_type_t type)
      return "None";
  }
-
+ 
 +// HardwareOne: out of line so that this definition is the one linked. Prebuilt
 +// libfbs_model.a carries a weak copy of the upstream inline destructor (it frees exponent arrays
 +// with heap_caps_free and treats shape/axis_offset as std::vector<int>); a strong definition here
@@ -1380,7 +1752,7 @@ index b85a864..b163783 100644
  TensorBase::TensorBase(
      std::vector<int> shape, const void *element, int exponent, dtype_t dtype, bool deep, uint32_t caps)
  {
-@@ -427,8 +445,8 @@ TensorBase &TensorBase::set_shape(const std::vector<int> shape)
+@@ -427,8 +448,8 @@ TensorBase &TensorBase::set_shape(const std::vector<int> shape)
  {
      if (shape.size() == 0) {
          this->size = 1;
@@ -1390,8 +1762,8 @@ index b85a864..b163783 100644
 +        this->axis_offset.clear();
          return *this;
      }
-
-@@ -438,13 +456,13 @@ TensorBase &TensorBase::set_shape(const std::vector<int> shape)
+ 
+@@ -438,13 +459,13 @@ TensorBase &TensorBase::set_shape(const std::vector<int> shape)
          assert(shape[i] >= 1);
          this->size *= shape[i];
      }
@@ -1409,14 +1781,14 @@ index b85a864..b163783 100644
 -    this->axis_offset = axis_offset;
      return *this;
  }
-
-@@ -1080,21 +1098,23 @@ TensorBase *TensorBase::transpose(TensorBase *input, std::vector<int> perm)
+ 
+@@ -1080,21 +1101,23 @@ TensorBase *TensorBase::transpose(TensorBase *input, std::vector<int> perm)
  {
      assert(this->get_size() == input->get_size());
      assert(this->dtype == input->dtype);
 +    // HardwareOne: the element loops take std::vector<int>&; shape/axis_offset are metadata vectors.
 +    std::vector<int> input_shape = input->shape, input_axis_offset = input->axis_offset;
-
+ 
      if (this->dtype == DATA_TYPE_INT8) {
 -        transpose<int8_t>((int8_t *)input->get_element_ptr(), input->shape, input->axis_offset, perm);
 +        transpose<int8_t>((int8_t *)input->get_element_ptr(), input_shape, input_axis_offset, perm);
@@ -1439,15 +1811,14 @@ index b85a864..b163783 100644
 -        transpose<float>((float *)input->get_element_ptr(), input->shape, input->axis_offset, perm);
 +        transpose<float>((float *)input->get_element_ptr(), input_shape, input_axis_offset, perm);
      }
-
+ 
      return this;
 diff --git a/dl/tool/include/dl_tool.hpp b/dl/tool/include/dl_tool.hpp
-index 2f3a801..9d2589c 100644
 --- a/dl/tool/include/dl_tool.hpp
 +++ b/dl/tool/include/dl_tool.hpp
 @@ -9,6 +9,7 @@
  #include <vector>
-
+ 
  #include "dl_define.hpp"
 +#include "dl_tool_metadata.hpp" // HardwareOne tree-local: metadata placement hook
  #include "esp_cpu.h"
@@ -1455,10 +1826,10 @@ index 2f3a801..9d2589c 100644
  #include "esp_memory_utils.h"
 diff --git a/dl/tool/include/dl_tool_metadata.hpp b/dl/tool/include/dl_tool_metadata.hpp
 new file mode 100644
-index 0000000..4b8b43e
+index 0000000..0a4db98
 --- /dev/null
 +++ b/dl/tool/include/dl_tool_metadata.hpp
-@@ -0,0 +1,241 @@
+@@ -0,0 +1,262 @@
 +#pragma once
 +/**
 + * HardwareOne tree-local addition: where ESP-DL keeps a model's long-lived metadata.
@@ -1478,6 +1849,20 @@ index 0000000..4b8b43e
 + * request through ps_alloc). Nothing else changes: no global malloc hook, no heap threshold
 + * change, and allocations ESP-DL makes for a single inference (kernel arguments, shift tables)
 + * keep their own allocators. With no allocator installed every site behaves exactly as upstream.
++ *
++ * Two kinds are not long-lived but are placed the same way, because while a model is built they
++ * add up to more than everything above (a 395-node graph: about 150 KB in some 3,500 blocks, all
++ * of it internal RAM upstream, on top of what the system already uses):
++ *  - Plan: the memory planner's records (dl_memory_manager*.{hpp,cpp}), freed when Model::build
++ *    returns;
++ *  - FbsMap: what prebuilt libfbs_model.a allocates itself. FbsModel keeps three name maps with
++ *    std::string keys for as long as it lives (clear_map() frees them) and returns strings and
++ *    vectors by value. Its object file has no source here; this tree's CMakeLists.txt links a copy
++ *    whose two undefined symbols operator new(size_t) and operator delete(void*, size_t) are renamed
++ *    to hw1_dl_fbs_new / hw1_dl_fbs_delete (dl_tool_metadata.cpp), so only that object's requests
++ *    are routed. Blocks cross the boundary in both directions (the caller frees a returned string
++ *    with global delete; the library frees an argument it moved from): free() and heap_caps_free()
++ *    accept any heap block, which the allocator contract below already requires.
 + *
 + * Contract for an installed allocator:
 + *  - alloc(size, align, kind): size > 0, align a power of two (at most 16); returns a block of
@@ -1519,6 +1904,8 @@ index 0000000..4b8b43e
 +    Index,     ///< module input/output index vectors, Conv pads/strides/dilations
 +    List,      ///< ModelContext tensor lists, the execution plan
 +    Names,     ///< ModelContext tensor-name map nodes and key strings
++    Plan,      ///< build-time only: the memory planner's TensorInfo records, their names and shapes, chunk lists
++    FbsMap,    ///< prebuilt libfbs_model's own operator new: FbsModel's name maps and the values it returns
 +    Count
 +};
 +constexpr size_t kMetadataKinds = static_cast<size_t>(MetadataKind::Count);
@@ -1651,6 +2038,11 @@ index 0000000..4b8b43e
 +    return !(b == a);
 +}
 +
++/** The memory planner's build-time strings and vectors (MetadataKind::Plan). */
++using plan_string = std::basic_string<char, std::char_traits<char>, MetadataStlAllocator<char, MetadataKind::Plan>>;
++template <class T>
++using plan_vector = meta_vector<T, MetadataKind::Plan>;
++
 +/** Tensor-name strings and the name map (MetadataKind::Names). */
 +using meta_string = std::basic_string<char, std::char_traits<char>, MetadataStlAllocator<char, MetadataKind::Names>>;
 +/** Orders names by their characters: lookups take any string type without converting it. */
@@ -1728,10 +2120,10 @@ index 0000000..7dd9dca
 +    ret
 diff --git a/dl/tool/src/dl_tool_metadata.cpp b/dl/tool/src/dl_tool_metadata.cpp
 new file mode 100644
-index 0000000..28e2c8e
+index 0000000..91fd584
 --- /dev/null
 +++ b/dl/tool/src/dl_tool_metadata.cpp
-@@ -0,0 +1,111 @@
+@@ -0,0 +1,129 @@
 +// HardwareOne tree-local addition: see dl_tool_metadata.hpp.
 +// HW1-HOSTTEST: test_dl_metadata.py compiles this file on the host against fakes of the three
 +// ESP-IDF headers below and of malloc_aligned.
@@ -1775,7 +2167,7 @@ index 0000000..28e2c8e
 +const char *metadata_kind_name(MetadataKind kind)
 +{
 +    static const char *const names[kMetadataKinds] = {
-+        "model", "ctx", "loader", "fbs", "module", "tensor", "exp", "shape", "index", "list", "names"};
++        "model", "ctx", "loader", "fbs", "module", "tensor", "exp", "shape", "index", "list", "names", "plan", "fbsmap"};
 +    const size_t k = static_cast<size_t>(kind);
 +    return k < kMetadataKinds ? names[k] : "?";
 +}
@@ -1843,8 +2235,25 @@ index 0000000..28e2c8e
 +
 +} // namespace tool
 +} // namespace dl
++
++// libfbs_model.a's operator new(size_t) and operator delete(void*, size_t), by the symbol names this
++// tree's CMakeLists.txt gives that one object's references (see MetadataKind::FbsMap). Same contract
++// as the global pair: never returns nullptr, accepts nullptr and any heap block. The heap's own
++// alignment, as malloc gave these blocks upstream.
++extern "C" void *hw1_dl_fbs_new(size_t size)
++{
++    void *p = dl::tool::metadata_alloc(size, alignof(void *), dl::tool::MetadataKind::FbsMap);
++    if (!p) {
++        dl::tool::metadata_bad_alloc(size, dl::tool::MetadataKind::FbsMap);
++    }
++    return p;
++}
++
++extern "C" void hw1_dl_fbs_delete(void *ptr, size_t)
++{
++    dl::tool::metadata_free(ptr);
++}
 diff --git a/fbs_loader/include/fbs_loader.hpp b/fbs_loader/include/fbs_loader.hpp
-index b929476..a80bb44 100644
 --- a/fbs_loader/include/fbs_loader.hpp
 +++ b/fbs_loader/include/fbs_loader.hpp
 @@ -110,6 +110,9 @@ typedef enum {
@@ -1858,7 +2267,6 @@ index b929476..a80bb44 100644
       * @brief Construct a new FbsLoader object.
       *
 diff --git a/fbs_loader/include/fbs_model.hpp b/fbs_loader/include/fbs_model.hpp
-index c1ba290..53c9b77 100644
 --- a/fbs_loader/include/fbs_model.hpp
 +++ b/fbs_loader/include/fbs_model.hpp
 @@ -33,6 +33,14 @@ public:
@@ -1877,7 +2285,6 @@ index c1ba290..53c9b77 100644
               size_t size,
               model_location_type_t location,
 diff --git a/idf_component.yml b/idf_component.yml
-index b7ae0de..78f1095 100644
 --- a/idf_component.yml
 +++ b/idf_component.yml
 @@ -1,5 +1,5 @@

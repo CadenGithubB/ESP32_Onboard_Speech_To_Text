@@ -40,18 +40,36 @@ struct DlMetadataStats {
   uint32_t failed = 0;         // requests neither heap could serve
   uint32_t frees = 0;          // non-null blocks returned through the hook
 };
-inline constexpr size_t kDlMetadataKinds = 11;  // dl::tool::kMetadataKinds (static_assert in the .cpp)
+inline constexpr size_t kDlMetadataKinds = 13;  // dl::tool::kMetadataKinds (static_assert in the .cpp)
+// The first eleven kinds are what a model keeps while it lives. The last two exist only while
+// one is built: the memory planner's records (plan) and what prebuilt libfbs_model allocates
+// itself (fbsmap: FbsModel's name maps and the strings and vectors it returns). Upstream they
+// were ~3,500 small internal-RAM blocks during a 395-node build; they are placed like the rest.
+inline constexpr size_t kDlMetadataLongLivedKinds = 11;
 
 // Idempotent; call before building any model. Returns true once installed.
 bool installDlMetadataAllocator();
 bool dlMetadataAllocatorInstalled();
-// Cumulative since boot, over all kinds or one kind (dl::tool::MetadataKind
-// value). Updated atomically; a snapshot pair brackets one build, but another
-// task building an ESP-DL model at the same time is counted too.
+// Cumulative since boot, over the long-lived kinds (frees: every kind) or one
+// kind (dl::tool::MetadataKind value). Updated atomically; a snapshot pair
+// brackets one build, but another task building an ESP-DL model at the same
+// time is counted too.
 DlMetadataStats dlMetadataStats();
 DlMetadataStats dlMetadataStats(size_t kind);
 // The difference of two snapshots (after - before), field by field.
 DlMetadataStats dlMetadataDelta(const DlMetadataStats& before, const DlMetadataStats& after);
+
+// While one exists, the models ESP-DL constructs keep their per-channel exponent
+// arrays as int8_t instead of int (dl_tensor_base.hpp, hw1_dl_compact_exponents:
+// Citrinet has 150,338 of them, 601 KB as int). Only around the STT and speaker
+// models, whose tensors this tree's ESP-DL alone reads; a model ESP-SR's prebuilt
+// code reads keeps int arrays.
+struct DlCompactExponents {
+  DlCompactExponents();
+  ~DlCompactExponents();
+  DlCompactExponents(const DlCompactExponents&) = delete;
+  DlCompactExponents& operator=(const DlCompactExponents&) = delete;
+};
 
 // The runtime's own long-lived blocks (the resident model's bookkeeping):
 // ps_alloc(size, AllocPolicy::PreferPSRAM, tag) / ps_free, counted in the

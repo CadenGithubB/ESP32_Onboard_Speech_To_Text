@@ -363,7 +363,8 @@ void loadLanguageModel(LanguageModel& m) {
 
 hw1::stt::DecodeResult decodeWithLanguageModel(void* context, const int8_t* logits, size_t frames,
                                                int exponent, char* text, size_t capacity,
-                                               const STTLocalControl& control) {
+                                               const STTLocalControl& control,
+                                               const hw1::stt::DecodeScratch&) {
   namespace lm = hw1::stt::lm;
   auto& m = *static_cast<LanguageModel*>(context);
   if (!m.tried) {  // loaded at the first decode, when the model's own memory already exists

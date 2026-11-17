@@ -1,0 +1,8044 @@
+{
+  "schema": 1,
+  "esp_dl": "3.3.12",
+  "raw_model_sha256": "a9dbce5bcf9ba039b3a3ca31dc30e6de1d6cf56ad2d7c091d30110c65784623b",
+  "model_nodes": 395,
+  "operator_counts": {
+    "Conv": 282,
+    "GlobalAveragePool": 23,
+    "Sigmoid": 23,
+    "Mul": 23,
+    "Relu": 23,
+    "Add": 21
+  },
+  "graph_ops": [
+    "Add",
+    "Conv",
+    "GlobalAveragePool",
+    "Mul",
+    "Relu",
+    "Sigmoid"
+  ],
+  "kernels": [
+    "dl_esp32p4_s8_conv2d_per_channel_11cn",
+    "dl_esp32p4_s8_conv2d_per_channel_11cn_bias",
+    "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu",
+    "dl_esp32p4_s8_conv2d_per_channel_11cn_relu",
+    "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+    "dl_esp32p4_s8_unaligned_conv2d_per_channel_11cn_bias"
+  ],
+  "requirements_sha256": "440855ec33f540744e887a6b315dfd9ee707af8d5c39c6a08f03510dde16c387",
+  "verified_with_esp_sr_union": false,
+  "generator_sha256": "dd7ef9cfef44e73c159eb3a755ecef84f94346814f6e69bad7fa02c73b95e6d9",
+  "source_sha256": {
+    "spec/ops.yml": "90259c337f7c53b7bb64f5893ae1958df9adc7542c0f26e3ce83dac1cc242783",
+    "spec/kernels.yml": "562734ddf678a05072136f077e7bcd97e0721141cfdd082e9c098906a901e028",
+    "spec/select/Conv.yml": "5d948d4ed0a070537f7b146237dd6c953ac3601788a5052069348f7af8a080fc",
+    "cmake/compile_finalize.py": "37dd871e11f73cdf4f4d17bd0d3ee7c15a2ff827628d8a18d9bb7019530117e3"
+  },
+  "convolutions": [
+    {
+      "node": "/blocks.0/main/main.0/Conv",
+      "input_channels": 80,
+      "output_channels": 80,
+      "filter_shape": [
+        5,
+        1,
+        80,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.0/main/main.1/Conv",
+      "input_channels": 80,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        80,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias"
+      }
+    },
+    {
+      "node": "/blocks.0/se/fc1/Conv",
+      "input_channels": 384,
+      "output_channels": 48,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        48
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": false,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_relu"
+      }
+    },
+    {
+      "node": "/blocks.0/se/fc2/Conv",
+      "input_channels": 48,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        48,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn"
+      }
+    },
+    {
+      "node": "/blocks.1/main/main.0/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        11,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.1/residual/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        2,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias"
+      }
+    },
+    {
+      "node": "/blocks.1/main/main.1/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.1/main/main.3/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        11,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.1/main/main.4/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.1/main/main.6/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        11,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.1/main/main.7/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.1/main/main.9/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        11,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.1/main/main.10/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.1/main/main.12/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        11,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        2,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.1/main/main.13/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias"
+      }
+    },
+    {
+      "node": "/blocks.1/se/fc1/Conv",
+      "input_channels": 384,
+      "output_channels": 48,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        48
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": false,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_relu"
+      }
+    },
+    {
+      "node": "/blocks.1/se/fc2/Conv",
+      "input_channels": 48,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        48,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn"
+      }
+    },
+    {
+      "node": "/blocks.2/main/main.0/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        13,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.2/residual/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias"
+      }
+    },
+    {
+      "node": "/blocks.2/main/main.1/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.2/main/main.3/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        13,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.2/main/main.4/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.2/main/main.6/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        13,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.2/main/main.7/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.2/main/main.9/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        13,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.2/main/main.10/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.2/main/main.12/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        13,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.2/main/main.13/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias"
+      }
+    },
+    {
+      "node": "/blocks.2/se/fc1/Conv",
+      "input_channels": 384,
+      "output_channels": 48,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        48
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": false,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_relu"
+      }
+    },
+    {
+      "node": "/blocks.2/se/fc2/Conv",
+      "input_channels": 48,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        48,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn"
+      }
+    },
+    {
+      "node": "/blocks.3/main/main.0/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        15,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.3/residual/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias"
+      }
+    },
+    {
+      "node": "/blocks.3/main/main.1/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.3/main/main.3/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        15,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.3/main/main.4/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.3/main/main.6/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        15,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.3/main/main.7/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.3/main/main.9/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        15,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.3/main/main.10/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.3/main/main.12/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        15,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.3/main/main.13/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias"
+      }
+    },
+    {
+      "node": "/blocks.3/se/fc1/Conv",
+      "input_channels": 384,
+      "output_channels": 48,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        48
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": false,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_relu"
+      }
+    },
+    {
+      "node": "/blocks.3/se/fc2/Conv",
+      "input_channels": 48,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        48,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn"
+      }
+    },
+    {
+      "node": "/blocks.4/main/main.0/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        17,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.4/residual/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias"
+      }
+    },
+    {
+      "node": "/blocks.4/main/main.1/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.4/main/main.3/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        17,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.4/main/main.4/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.4/main/main.6/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        17,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.4/main/main.7/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.4/main/main.9/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        17,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.4/main/main.10/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.4/main/main.12/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        17,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.4/main/main.13/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias"
+      }
+    },
+    {
+      "node": "/blocks.4/se/fc1/Conv",
+      "input_channels": 384,
+      "output_channels": 48,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        48
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": false,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_relu"
+      }
+    },
+    {
+      "node": "/blocks.4/se/fc2/Conv",
+      "input_channels": 48,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        48,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn"
+      }
+    },
+    {
+      "node": "/blocks.5/main/main.0/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        19,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.5/residual/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias"
+      }
+    },
+    {
+      "node": "/blocks.5/main/main.1/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.5/main/main.3/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        19,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.5/main/main.4/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.5/main/main.6/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        19,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.5/main/main.7/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.5/main/main.9/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        19,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.5/main/main.10/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.5/main/main.12/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        19,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.5/main/main.13/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias"
+      }
+    },
+    {
+      "node": "/blocks.5/se/fc1/Conv",
+      "input_channels": 384,
+      "output_channels": 48,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        48
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": false,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_relu"
+      }
+    },
+    {
+      "node": "/blocks.5/se/fc2/Conv",
+      "input_channels": 48,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        48,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn"
+      }
+    },
+    {
+      "node": "/blocks.6/main/main.0/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        21,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.6/residual/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias"
+      }
+    },
+    {
+      "node": "/blocks.6/main/main.1/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.6/main/main.3/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        21,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.6/main/main.4/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.6/main/main.6/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        21,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.6/main/main.7/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.6/main/main.9/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        21,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.6/main/main.10/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.6/main/main.12/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        21,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.6/main/main.13/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias"
+      }
+    },
+    {
+      "node": "/blocks.6/se/fc1/Conv",
+      "input_channels": 384,
+      "output_channels": 48,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        48
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": false,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_relu"
+      }
+    },
+    {
+      "node": "/blocks.6/se/fc2/Conv",
+      "input_channels": 48,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        48,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn"
+      }
+    },
+    {
+      "node": "/blocks.7/main/main.0/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        13,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.7/residual/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        2,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias"
+      }
+    },
+    {
+      "node": "/blocks.7/main/main.1/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.7/main/main.3/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        13,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.7/main/main.4/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.7/main/main.6/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        13,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.7/main/main.7/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.7/main/main.9/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        13,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.7/main/main.10/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.7/main/main.12/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        13,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        2,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.7/main/main.13/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias"
+      }
+    },
+    {
+      "node": "/blocks.7/se/fc1/Conv",
+      "input_channels": 384,
+      "output_channels": 48,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        48
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": false,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_relu"
+      }
+    },
+    {
+      "node": "/blocks.7/se/fc2/Conv",
+      "input_channels": 48,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        48,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn"
+      }
+    },
+    {
+      "node": "/blocks.8/main/main.0/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        15,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.8/residual/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias"
+      }
+    },
+    {
+      "node": "/blocks.8/main/main.1/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.8/main/main.3/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        15,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.8/main/main.4/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.8/main/main.6/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        15,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.8/main/main.7/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.8/main/main.9/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        15,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.8/main/main.10/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.8/main/main.12/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        15,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.8/main/main.13/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias"
+      }
+    },
+    {
+      "node": "/blocks.8/se/fc1/Conv",
+      "input_channels": 384,
+      "output_channels": 48,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        48
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": false,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_relu"
+      }
+    },
+    {
+      "node": "/blocks.8/se/fc2/Conv",
+      "input_channels": 48,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        48,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn"
+      }
+    },
+    {
+      "node": "/blocks.9/main/main.0/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        17,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.9/residual/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias"
+      }
+    },
+    {
+      "node": "/blocks.9/main/main.1/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.9/main/main.3/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        17,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.9/main/main.4/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.9/main/main.6/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        17,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.9/main/main.7/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.9/main/main.9/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        17,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.9/main/main.10/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.9/main/main.12/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        17,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.9/main/main.13/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias"
+      }
+    },
+    {
+      "node": "/blocks.9/se/fc1/Conv",
+      "input_channels": 384,
+      "output_channels": 48,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        48
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": false,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_relu"
+      }
+    },
+    {
+      "node": "/blocks.9/se/fc2/Conv",
+      "input_channels": 48,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        48,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn"
+      }
+    },
+    {
+      "node": "/blocks.10/main/main.0/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        19,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.10/residual/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias"
+      }
+    },
+    {
+      "node": "/blocks.10/main/main.1/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.10/main/main.3/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        19,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.10/main/main.4/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.10/main/main.6/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        19,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.10/main/main.7/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.10/main/main.9/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        19,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.10/main/main.10/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.10/main/main.12/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        19,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.10/main/main.13/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias"
+      }
+    },
+    {
+      "node": "/blocks.10/se/fc1/Conv",
+      "input_channels": 384,
+      "output_channels": 48,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        48
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": false,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_relu"
+      }
+    },
+    {
+      "node": "/blocks.10/se/fc2/Conv",
+      "input_channels": 48,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        48,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn"
+      }
+    },
+    {
+      "node": "/blocks.11/main/main.0/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        21,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.11/residual/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias"
+      }
+    },
+    {
+      "node": "/blocks.11/main/main.1/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.11/main/main.3/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        21,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.11/main/main.4/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.11/main/main.6/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        21,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.11/main/main.7/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.11/main/main.9/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        21,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.11/main/main.10/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.11/main/main.12/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        21,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.11/main/main.13/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias"
+      }
+    },
+    {
+      "node": "/blocks.11/se/fc1/Conv",
+      "input_channels": 384,
+      "output_channels": 48,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        48
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": false,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_relu"
+      }
+    },
+    {
+      "node": "/blocks.11/se/fc2/Conv",
+      "input_channels": 48,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        48,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn"
+      }
+    },
+    {
+      "node": "/blocks.12/main/main.0/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        23,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.12/residual/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias"
+      }
+    },
+    {
+      "node": "/blocks.12/main/main.1/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.12/main/main.3/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        23,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.12/main/main.4/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.12/main/main.6/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        23,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.12/main/main.7/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.12/main/main.9/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        23,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.12/main/main.10/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.12/main/main.12/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        23,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.12/main/main.13/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias"
+      }
+    },
+    {
+      "node": "/blocks.12/se/fc1/Conv",
+      "input_channels": 384,
+      "output_channels": 48,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        48
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": false,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_relu"
+      }
+    },
+    {
+      "node": "/blocks.12/se/fc2/Conv",
+      "input_channels": 48,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        48,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn"
+      }
+    },
+    {
+      "node": "/blocks.13/main/main.0/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        25,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.13/residual/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias"
+      }
+    },
+    {
+      "node": "/blocks.13/main/main.1/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.13/main/main.3/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        25,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.13/main/main.4/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.13/main/main.6/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        25,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.13/main/main.7/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.13/main/main.9/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        25,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.13/main/main.10/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.13/main/main.12/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        25,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.13/main/main.13/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias"
+      }
+    },
+    {
+      "node": "/blocks.13/se/fc1/Conv",
+      "input_channels": 384,
+      "output_channels": 48,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        48
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": false,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_relu"
+      }
+    },
+    {
+      "node": "/blocks.13/se/fc2/Conv",
+      "input_channels": 48,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        48,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn"
+      }
+    },
+    {
+      "node": "/blocks.14/main/main.0/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        25,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.14/residual/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        2,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias"
+      }
+    },
+    {
+      "node": "/blocks.14/main/main.1/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.14/main/main.3/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        25,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.14/main/main.4/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.14/main/main.6/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        25,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.14/main/main.7/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.14/main/main.9/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        25,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.14/main/main.10/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.14/main/main.12/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        25,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        2,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.14/main/main.13/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias"
+      }
+    },
+    {
+      "node": "/blocks.14/se/fc1/Conv",
+      "input_channels": 384,
+      "output_channels": 48,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        48
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": false,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_relu"
+      }
+    },
+    {
+      "node": "/blocks.14/se/fc2/Conv",
+      "input_channels": 48,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        48,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn"
+      }
+    },
+    {
+      "node": "/blocks.15/main/main.0/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        27,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.15/residual/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias"
+      }
+    },
+    {
+      "node": "/blocks.15/main/main.1/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.15/main/main.3/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        27,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.15/main/main.4/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.15/main/main.6/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        27,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.15/main/main.7/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.15/main/main.9/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        27,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.15/main/main.10/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.15/main/main.12/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        27,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.15/main/main.13/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias"
+      }
+    },
+    {
+      "node": "/blocks.15/se/fc1/Conv",
+      "input_channels": 384,
+      "output_channels": 48,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        48
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": false,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_relu"
+      }
+    },
+    {
+      "node": "/blocks.15/se/fc2/Conv",
+      "input_channels": 48,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        48,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn"
+      }
+    },
+    {
+      "node": "/blocks.16/main/main.0/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        29,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.16/residual/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias"
+      }
+    },
+    {
+      "node": "/blocks.16/main/main.1/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.16/main/main.3/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        29,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.16/main/main.4/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.16/main/main.6/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        29,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.16/main/main.7/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.16/main/main.9/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        29,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.16/main/main.10/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.16/main/main.12/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        29,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.16/main/main.13/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias"
+      }
+    },
+    {
+      "node": "/blocks.16/se/fc1/Conv",
+      "input_channels": 384,
+      "output_channels": 48,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        48
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": false,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_relu"
+      }
+    },
+    {
+      "node": "/blocks.16/se/fc2/Conv",
+      "input_channels": 48,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        48,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn"
+      }
+    },
+    {
+      "node": "/blocks.17/main/main.0/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        31,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.17/residual/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias"
+      }
+    },
+    {
+      "node": "/blocks.17/main/main.1/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.17/main/main.3/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        31,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.17/main/main.4/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.17/main/main.6/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        31,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.17/main/main.7/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.17/main/main.9/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        31,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.17/main/main.10/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.17/main/main.12/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        31,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.17/main/main.13/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias"
+      }
+    },
+    {
+      "node": "/blocks.17/se/fc1/Conv",
+      "input_channels": 384,
+      "output_channels": 48,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        48
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": false,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_relu"
+      }
+    },
+    {
+      "node": "/blocks.17/se/fc2/Conv",
+      "input_channels": 48,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        48,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn"
+      }
+    },
+    {
+      "node": "/blocks.18/main/main.0/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        33,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.18/residual/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias"
+      }
+    },
+    {
+      "node": "/blocks.18/main/main.1/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.18/main/main.3/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        33,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.18/main/main.4/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.18/main/main.6/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        33,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.18/main/main.7/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.18/main/main.9/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        33,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.18/main/main.10/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.18/main/main.12/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        33,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.18/main/main.13/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias"
+      }
+    },
+    {
+      "node": "/blocks.18/se/fc1/Conv",
+      "input_channels": 384,
+      "output_channels": 48,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        48
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": false,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_relu"
+      }
+    },
+    {
+      "node": "/blocks.18/se/fc2/Conv",
+      "input_channels": 48,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        48,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn"
+      }
+    },
+    {
+      "node": "/blocks.19/main/main.0/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        35,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.19/residual/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias"
+      }
+    },
+    {
+      "node": "/blocks.19/main/main.1/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.19/main/main.3/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        35,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.19/main/main.4/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.19/main/main.6/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        35,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.19/main/main.7/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.19/main/main.9/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        35,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.19/main/main.10/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.19/main/main.12/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        35,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.19/main/main.13/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias"
+      }
+    },
+    {
+      "node": "/blocks.19/se/fc1/Conv",
+      "input_channels": 384,
+      "output_channels": 48,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        48
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": false,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_relu"
+      }
+    },
+    {
+      "node": "/blocks.19/se/fc2/Conv",
+      "input_channels": 48,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        48,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn"
+      }
+    },
+    {
+      "node": "/blocks.20/main/main.0/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        37,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.20/residual/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias"
+      }
+    },
+    {
+      "node": "/blocks.20/main/main.1/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.20/main/main.3/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        37,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.20/main/main.4/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.20/main/main.6/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        37,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.20/main/main.7/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.20/main/main.9/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        37,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.20/main/main.10/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.20/main/main.12/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        37,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.20/main/main.13/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias"
+      }
+    },
+    {
+      "node": "/blocks.20/se/fc1/Conv",
+      "input_channels": 384,
+      "output_channels": 48,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        48
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": false,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_relu"
+      }
+    },
+    {
+      "node": "/blocks.20/se/fc2/Conv",
+      "input_channels": 48,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        48,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn"
+      }
+    },
+    {
+      "node": "/blocks.21/main/main.0/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        39,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.21/residual/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias"
+      }
+    },
+    {
+      "node": "/blocks.21/main/main.1/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.21/main/main.3/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        39,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.21/main/main.4/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.21/main/main.6/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        39,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.21/main/main.7/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.21/main/main.9/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        39,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.21/main/main.10/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias_relu"
+      }
+    },
+    {
+      "node": "/blocks.21/main/main.12/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        39,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.21/main/main.13/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias"
+      }
+    },
+    {
+      "node": "/blocks.21/se/fc1/Conv",
+      "input_channels": 384,
+      "output_channels": 48,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        48
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": false,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_relu"
+      }
+    },
+    {
+      "node": "/blocks.21/se/fc2/Conv",
+      "input_channels": 48,
+      "output_channels": 384,
+      "filter_shape": [
+        1,
+        1,
+        48,
+        384
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn"
+      }
+    },
+    {
+      "node": "/blocks.22/main/main.0/Conv",
+      "input_channels": 384,
+      "output_channels": 384,
+      "filter_shape": [
+        41,
+        1,
+        384,
+        1
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "dw",
+        "kshape": "hw",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1",
+        "border": "dl_esp32p4_s8_depthwise_conv2d_per_channel_hwc1"
+      }
+    },
+    {
+      "node": "/blocks.22/main/main.1/Conv",
+      "input_channels": 384,
+      "output_channels": 640,
+      "filter_shape": [
+        1,
+        1,
+        384,
+        640
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_bias"
+      }
+    },
+    {
+      "node": "/blocks.22/se/fc1/Conv",
+      "input_channels": 640,
+      "output_channels": 80,
+      "filter_shape": [
+        1,
+        1,
+        640,
+        80
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": false,
+        "act": "relu",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn_relu"
+      }
+    },
+    {
+      "node": "/blocks.22/se/fc2/Conv",
+      "input_channels": 80,
+      "output_channels": 640,
+      "filter_shape": [
+        1,
+        1,
+        80,
+        640
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": false,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": true
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_conv2d_per_channel_11cn"
+      }
+    },
+    {
+      "node": "/head/Conv",
+      "input_channels": 640,
+      "output_channels": 257,
+      "filter_shape": [
+        1,
+        1,
+        640,
+        257
+      ],
+      "strides": [
+        1,
+        1
+      ],
+      "signature": {
+        "target": "pie_v2",
+        "dtype": "s8",
+        "group": "1",
+        "kshape": "11",
+        "bias": true,
+        "act": "linear",
+        "per_ch": true,
+        "c_align": false
+      },
+      "slots": {
+        "body": "dl_esp32p4_s8_unaligned_conv2d_per_channel_11cn_bias"
+      }
+    }
+  ]
+}

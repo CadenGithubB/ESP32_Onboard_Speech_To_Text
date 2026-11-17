@@ -1,9 +1,9 @@
 // Speech to text on the ESP32-P4-EYE, and nothing else.
 //
-//   PDM microphone -> phrase segmenter -> QuartzNet 15x5 (int8) + word language model -> serial console
+//   PDM microphone -> phrase segmenter -> Citrinet-384 (int8) + word language model -> serial console
 //
 // Put two files in a folder named "STT Models" on a FAT microSD card:
-//   quartznet15x5-gen2-25397.p4.stt   the model this build is pinned to
+//   citrinet384-2000h.p4.stt          the model this build is pinned to
 //   meeting.lm                        the language model (optional; less accurate without it)
 // then build, flash, open the serial monitor and talk. Live drafts appear while you speak
 // and the final caption replaces them when you pause.
@@ -24,15 +24,18 @@
 #include "sd_pwr_ctrl_by_on_chip_ldo.h"
 #include "sdmmc_cmd.h"
 
-#include "stt/quartznet_runtime.h"
+#include "stt/citrinet_runtime.h"
+#include "stt/quartznet_runtime.h"  // the runtime API both models share
 #include "stt/stt_lm.h"
+#include "stt/stt_lm_wordpiece.h"
+#include "stt/stt_model_selection.h"
 #include "stt/stt_stream.h"
 
 namespace {
 // Files on the card. The engine checks the model's size and SHA-256 against
-// components/hw1_stt/stt/stt_model_identity.h and refuses anything else.
+// components/hw1_stt/stt/stt_model_identity_citrinet384.h and refuses anything else.
 constexpr const char* kMountPoint = "/sd";
-constexpr const char* kModelPath = "/sd/STT Models/quartznet15x5-gen2-25397.p4.stt";
+constexpr const char* kModelPath = "/sd/STT Models/citrinet384-2000h.p4.stt";
 constexpr const char* kLmPath = "/sd/STT Models/meeting.lm";
 
 // ESP32-P4-EYE wiring. Another P4 board: change these.
@@ -48,7 +51,6 @@ constexpr gpio_num_t kMicClk = GPIO_NUM_22, kMicData = GPIO_NUM_21, kMicPower = 
 constexpr uint32_t kSampleRate = 16000;
 constexpr size_t kPhraseSamples = 10 * kSampleRate;  // a phrase is at most 10 s
 constexpr size_t kReadSamples = 1024;                // one PDM DMA block
-constexpr size_t kRingSamples = 65536;
 
 hw1::stt::StreamPipeline gPipeline;
 SemaphoreHandle_t gPipelineMutex = nullptr;
@@ -163,46 +165,6 @@ void captureTask(void*) {
   }
 }
 
-// Computes the model's input features while you are still speaking, so less is left to do
-// when the phrase ends.
-void featureTask(void* context) {
-  auto* workspace = static_cast<hw1::stt::FrontendWorkspace*>(context);
-  hw1::stt::StreamFeatureWork work;
-  float row[64];
-  for (;;) {
-    if (!gPipeline.featureTake(work)) {
-      vTaskDelay(pdMS_TO_TICKS(10));
-      continue;
-    }
-    const bool ok = hw1::stt::log_mel_frame_ring(work.ring, 511, work.start, work.samples, work.frame, row,
-                                                 workspace) == hw1::stt::Status::Ok;
-    gPipeline.featureComplete(work, row, ok);
-    if ((work.frame & 7) == 7) vTaskDelay(1);
-  }
-}
-
-void startFeatures(hw1::stt::ModelCache& weights) {
-  constexpr size_t rowsBytes = 2 * (kPhraseSamples / 160) * 64 * sizeof(float);
-  size_t contiguous = 0;
-  const size_t keep =
-      std::max<size_t>(2u << 20, hw1::stt::callBudget(kPhraseSamples, &weights, &contiguous) + (1u << 20));
-  auto* ring = static_cast<int16_t*>(heap_caps_malloc(kRingSamples * sizeof(int16_t), MALLOC_CAP_SPIRAM));
-  auto* rows = static_cast<float*>(heap_caps_malloc(rowsBytes, MALLOC_CAP_SPIRAM));
-  auto* work = static_cast<hw1::stt::FrontendWorkspace*>(
-      heap_caps_malloc(sizeof(hw1::stt::FrontendWorkspace), MALLOC_CAP_SPIRAM));
-  TaskHandle_t task = nullptr;
-  // The cache is an optimisation: without the memory for it, captions still work.
-  const bool ok = ring && rows && work && heap_caps_get_free_size(MALLOC_CAP_SPIRAM) >= keep &&
-                  heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM) >= contiguous &&
-                  xTaskCreatePinnedToCore(featureTask, "stt_features", 4096, work, 1, &task, 0) == pdPASS;
-  if (ok && gPipeline.enableFeatures(ring, kRingSamples, rows, rows + rowsBytes / (2 * sizeof(float)))) return;
-  if (task) vTaskDelete(task);
-  heap_caps_free(ring);
-  heap_caps_free(rows);
-  heap_caps_free(work);
-  printf("Capture-time features off (not enough spare PSRAM)\n");
-}
-
 // ---------------------------------------------------------------- language model
 struct LanguageModel {
   uint8_t* blob = nullptr;
@@ -218,7 +180,7 @@ void loadLanguageModel(LanguageModel& m) {
     return;
   }
   const size_t bytes = size_t(st.st_size);
-  constexpr size_t kReserve = 6u << 20;  // PSRAM a 10 s phrase needs beside the language model
+  constexpr size_t kReserve = 3u << 20;  // PSRAM a 10 s phrase needs beside the language model
   if (bytes < 96 || heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM) < bytes ||
       heap_caps_get_free_size(MALLOC_CAP_SPIRAM) < bytes + kReserve) {
     printf("Language model skipped (%u bytes; not enough PSRAM)\n", unsigned(bytes));
@@ -246,7 +208,8 @@ void loadLanguageModel(LanguageModel& m) {
 
 hw1::stt::DecodeResult decodeWithLanguageModel(void* context, const int8_t* logits, size_t frames,
                                                int exponent, char* text, size_t capacity,
-                                               const STTLocalControl& control) {
+                                               const STTLocalControl& control,
+                                               const hw1::stt::DecodeScratch& scratch) {
   namespace lm = hw1::stt::lm;
   auto& m = *static_cast<LanguageModel*>(context);
   if (!m.tried) {  // loaded at the first decode, when the model's own memory already exists
@@ -254,8 +217,19 @@ hw1::stt::DecodeResult decodeWithLanguageModel(void* context, const int8_t* logi
     loadLanguageModel(m);
   }
   if (!m.view.valid()) return hw1::stt::DecodeResult::Fallback;
-  const lm::DecodeStatus status =
-      lm::decode(logits, frames, exponent, m.view, nullptr, text, capacity, {control.context, control.cancelled});
+  // Citrinet writes word pieces, not letters: the search joins pieces into words and scores
+  // each finished word with the language model. Weight 0.2 and word bonus 0.75 are the values
+  // tuned for this model; the runtime lends its idle activation memory as workspace.
+  const lm::wordpiece::Pieces* pieces = hw1::stt::citrinetPieces();
+  if (!pieces) return hw1::stt::DecodeResult::Fallback;
+  const double strength = 1.0;
+  lm::wordpiece::Params params = lm::wordpiece::fileParams(m.view);
+  params.alpha = 0.2 * strength;
+  params.beta = 0.75 * strength;
+  params.hotwordBonus *= strength;
+  const lm::DecodeStatus status = lm::wordpiece::decode(
+      logits, frames, size_t(hw1::stt::identity::kOutputClasses), exponent, m.view, *pieces, params, nullptr, text,
+      capacity, {control.context, control.cancelled}, nullptr, scratch.data, scratch.bytes);
   if (status == lm::DecodeStatus::Ok) return hw1::stt::DecodeResult::Decoded;
   if (status == lm::DecodeStatus::Cancelled) return hw1::stt::DecodeResult::Cancelled;
   return hw1::stt::DecodeResult::Fallback;
@@ -305,7 +279,7 @@ extern "C" void app_main() {
   if (const char* failure = mountCard()) halt(failure);
   struct stat st = {};
   if (stat(kModelPath, &st) != 0)
-    halt("model file missing: the card needs \"STT Models/quartznet15x5-gen2-25397.p4.stt\"");
+    halt("model file missing: the card needs \"STT Models/citrinet384-2000h.p4.stt\"");
 
   vTaskPrioritySet(nullptr, 2);
   gPipelineMutex = xSemaphoreCreateMutex();
@@ -350,7 +324,6 @@ extern "C" void app_main() {
     printf("Model ready in %lld ms\n", (esp_timer_get_time() - t0) / 1000);
   }
 
-  startFeatures(gWeights);
   if (!startMic()) halt("microphone did not start");
   if (xTaskCreatePinnedToCore(captureTask, "capture", 8192, nullptr, 3, nullptr, 1) != pdPASS)
     halt("could not start the capture task");

@@ -12,6 +12,8 @@
 #include "esp_log.h"
 #include "esp_memory_utils.h"
 
+extern "C" int hw1_dl_compact_exponents;  // dl_tensor_base.cpp
+
 namespace hw1::stt {
 namespace {
 
@@ -25,7 +27,8 @@ constexpr size_t kHeapAlign = 4;
 // ps_alloc tags, one per dl::tool::MetadataKind (order of the enum).
 constexpr const char* kTags[kDlMetadataKinds] = {
     "stt.dl.model", "stt.dl.ctx",   "stt.dl.loader", "stt.dl.fbs",   "stt.dl.module", "stt.dl.tensor",
-    "stt.dl.exp",   "stt.dl.shape", "stt.dl.index",  "stt.dl.list",  "stt.dl.names"};
+    "stt.dl.exp",   "stt.dl.shape", "stt.dl.index",  "stt.dl.list",  "stt.dl.names",  "stt.dl.plan",
+    "stt.dl.fbsmap"};
 
 struct Counters {
   std::atomic<uint32_t> allocs{0}, bytes{0}, internal{0}, internalBytes{0}, failed{0};
@@ -43,7 +46,7 @@ size_t kindIndex(dl::tool::MetadataKind kind) {
 // policy as ps_alloc(PreferPSRAM): PSRAM, then internal RAM; internal only
 // while the PSRAM bypass is on. Reported to the same fallback counter and
 // allocation tracker as ps_alloc.
-void* alignedPreferPsram(size_t align, size_t size, const char* tag) {
+void* alignedPreferPSRAM(size_t align, size_t size, const char* tag) {
   const bool tryPsram = !psramBypassEnabled() && psramAvailableRuntime();
   void* p = tryPsram ? heap_caps_aligned_alloc(align, size, kPsram8Bit) : nullptr;
   if (!p) p = heap_caps_aligned_alloc(align, size, kInternal8Bit);
@@ -57,7 +60,7 @@ void* alignedPreferPsram(size_t align, size_t size, const char* tag) {
 void* allocate(size_t size, size_t align, dl::tool::MetadataKind kind) {
   const size_t k = kindIndex(kind);
   void* p = align <= kHeapAlign ? ps_alloc(size, AllocPolicy::PreferPSRAM, kTags[k])
-                                : alignedPreferPsram(align, size, kTags[k]);
+                                : alignedPreferPSRAM(align, size, kTags[k]);
   Counters& c = gKinds[k];
   if (!p) {
     c.failed.fetch_add(1, std::memory_order_relaxed);
@@ -110,8 +113,8 @@ DlMetadataStats dlMetadataStats(size_t kind) {
 
 DlMetadataStats dlMetadataStats() {
   DlMetadataStats total;
-  for (const Counters& c : gKinds) {
-    const DlMetadataStats s = load(c);
+  for (size_t k = 0; k < kDlMetadataLongLivedKinds; ++k) {
+    const DlMetadataStats s = load(gKinds[k]);
     total.allocs += s.allocs;
     total.bytes += s.bytes;
     total.internal += s.internal;
@@ -132,6 +135,9 @@ DlMetadataStats dlMetadataDelta(const DlMetadataStats& before, const DlMetadataS
   d.frees = after.frees - before.frees;
   return d;
 }
+
+DlCompactExponents::DlCompactExponents() { __atomic_add_fetch(&hw1_dl_compact_exponents, 1, __ATOMIC_SEQ_CST); }
+DlCompactExponents::~DlCompactExponents() { __atomic_sub_fetch(&hw1_dl_compact_exponents, 1, __ATOMIC_SEQ_CST); }
 
 void* sttPsramAlloc(size_t size, const char* tag) { return ps_alloc(size, AllocPolicy::PreferPSRAM, tag); }
 

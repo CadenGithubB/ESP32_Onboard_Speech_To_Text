@@ -1,0 +1,58 @@
+{
+  "cmvn": {
+    "implementation": "float32, shifted by frame 0, Kahan sums (as quartznet_frontend)",
+    "scope": "whole valid utterance",
+    "std_epsilon": 1e-05,
+    "variance_correction": 1
+  },
+  "ctc": {
+    "blank": 256,
+    "classes": 257,
+    "time_stride": 8,
+    "tokens": "WordPiece",
+    "vocabulary_sha256": "6e862c3be921c2fd937829e53d8fd554752a4a584abf9cdc0bc745717fecf3f9"
+  },
+  "dither": null,
+  "input": {
+    "channels": 1,
+    "dtype": "int16",
+    "maximum_samples": 480000,
+    "minimum_samples": 320,
+    "preprocessed": false,
+    "sample_rate_hz": 16000,
+    "scale": 32768
+  },
+  "mel": {
+    "bins": 80,
+    "log_guard": 5.960464477539063e-08,
+    "power": 2,
+    "source": "checkpoint",
+    "sparse_nonzero": 500
+  },
+  "name": "hw1-citrinet384-2000h-frontend-v1",
+  "output": {
+    "dtype": "float32",
+    "frames": "ceil(samples/160)",
+    "layout": "T,80",
+    "maximum_frames": 3000,
+    "padding": false
+  },
+  "preemphasis": 0.97,
+  "schema": 1,
+  "source_sha256": {
+    "citrinet_constants.h": "3b38a5c5aa9f4eae99522644630b29c86a2b3a8773c79241b364d3c71bab38b7",
+    "citrinet_frontend.cpp": "0f1a84c48c093834b3c42a443778fa9dff97bb71f219f4d908b6a24506a6a7d8",
+    "citrinet_frontend.h": "468ea290298610fd96db958d018a7f85fbbf6d179c4728830583da7c64620698",
+    "quartznet_constants.h": "a77794cca23f329cccc5e8bc7176a20aed6e1412190586bf218f1ab46d602239",
+    "quartznet_frontend.h": "ef1a0870018a6b5a4c8ee48196c56b436c3e3e5407380bdee79e47dcbbd6cb67"
+  },
+  "stft": {
+    "center": true,
+    "fft": 512,
+    "hop": 160,
+    "padding": "reflect",
+    "window": 400,
+    "window_offset": 56,
+    "window_source": "checkpoint"
+  }
+}

@@ -45,11 +45,19 @@ struct Diagnostics {
 // Cancelled fails the call. release frees optional decoder memory (true if
 // any); the runtime tries it before reporting a PSRAM shortfall, so a cached
 // language model can never be why a call is refused.
+// Memory the runtime lends its decoder for one decode call (nullptr, 0: none):
+// its resident model's activation arena, idle until the next run writes all of
+// it again. Any content, any alignment; the logits never lie inside it.
+struct DecodeScratch {
+    void* data = nullptr;
+    size_t bytes = 0;
+};
 enum class DecodeResult : uint8_t { Decoded, Fallback, Cancelled };
 struct Decoder {
     void* context = nullptr;
     DecodeResult (*decode)(void* context, const int8_t* logits, size_t frames, int exponent,
-                           char* text, size_t capacity, const STTLocalControl& control) = nullptr;
+                           char* text, size_t capacity, const STTLocalControl& control,
+                           const DecodeScratch& scratch) = nullptr;
     bool (*release)(void* context) = nullptr;
 };
 // Retains the pinned, verified raw weights and, with HW1_STT_RESIDENT_MODEL,

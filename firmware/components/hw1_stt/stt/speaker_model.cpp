@@ -1,4 +1,5 @@
 #include "speaker_model.h"
+#include "stt_dl_metadata.h"
 #include "dl_model_base.hpp"
 #include "esp_timer.h"
 #include "esp_heap_caps.h"
@@ -91,6 +92,7 @@ LoadStatus Model::load(const uint8_t* blob,size_t bytes,size_t maxSamples,void* 
     // second copy), internal RAM limited to 0, metadata via the installed
     // PSRAM allocator (stt_dl_metadata.h).
     const int64_t build0=esp_timer_get_time();
+    const DlCompactExponents compactExponents;
     trunk_=new(std::nothrow) dl::Model(reinterpret_cast<const char*>(blob+trunkOff),fbs::MODEL_LOCATION_IN_FLASH_RODATA,
                                         0,dl::MEMORY_MANAGER_GREEDY,nullptr,false);
     if(!trunk_)return LoadStatus::NoMemory;
