@@ -90,6 +90,7 @@ struct DecodeStats {
     uint32_t candidates=0;   // scored candidates, all frames
     uint32_t completions=0;  // word LM evaluations (per prefix, only where the result can matter)
     size_t workspaceBytes=0;
+    bool workspaceLent=false;   // the workspace lay in the caller's scratch memory (word-piece decoder), not the heap
     // Completed words in the actual initial/final context, excluding BOS/EOS.
     // 0..2 words; UINT8_MAX means that stage was not reached. The end context
     // includes a final partial word, before EOS and output-buffer truncation.

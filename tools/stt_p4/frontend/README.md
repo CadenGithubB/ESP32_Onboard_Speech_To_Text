@@ -119,3 +119,25 @@ the downloaded archive did not include a separate license file. Preserve
 NVIDIA attribution and checkpoint provenance with redistributed derived
 constants/model artifacts. The reference algorithm follows the inspected
 checkpoint and [NeMo feature implementation](https://github.com/NVIDIA/NeMo/blob/v1.0.0rc1/nemo/collections/asr/parts/features.py).
+
+## Citrinet-384 front end
+
+`citrinet_frontend.{h,cpp}` (next to the QuartzNet files, which it leaves unchanged) is the same pipeline
+with Citrinet's parameters: 80 mel bands and a 400-sample window, centered at offset 56 of the 512-point
+FFT frame (torch.stft's placement of a shorter window), so a frame reads samples `[t*160-200, t*160+200)`.
+No dither (the device never adds it; export and calibration use none). Pre-emphasis 0.97, hop 160,
+squared magnitude, `log(mel + 2^-24)` and the per-bin CMVN are QuartzNet's. It shares QuartzNet's `Status`,
+`FrontendTiming`, sample bounds and 512-point FFT tables; its window and mel bank (80 contiguous filters,
+500 nonzero weights) are in `citrinet_constants.h`, generated from the pinned 2000 h checkpoint:
+
+```
+python3 export_citrinet_constants.py --checkpoint <citrinet384-2000h-best> [--check]
+python3 test_citrinet_frontend.py --checkpoint <citrinet384-2000h-best> [--fixtures <dir with 0.wav 1.wav>] [--sanitize]
+```
+
+The test compares the C++ with the training code's own front end (`tools/stt_train_15x5/common.py`
+`Frontend`, dither off). Each case meets QuartzNet's tolerance (max 0.0006, mean 0.00002) or, for
+ill-conditioned input such as near-silence, is no less accurate than the training front end against an
+exact float64 computation (both float32 implementations sit ~1e-2 from it there). `log_mel_frame` and
+`log_mel_frame_ring` must equal the batch rows bit for bit. On the two fixtures the int8 model input
+(exponent -4) from the C++ features is byte-identical to the export's fixture inputs.

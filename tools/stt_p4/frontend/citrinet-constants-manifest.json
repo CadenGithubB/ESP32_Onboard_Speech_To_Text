@@ -1,0 +1,11 @@
+{
+  "window_sha256_f32le": "7f26d47d05919cf2a1a323072ff6c7da0ef35fd3472c5147d100e47ef84112cd",
+  "mel_sha256_f32le": "e40d559a1f6807cc9fb86eca70c0b33018a16d9c2389b8b38e54d5cecbd19139",
+  "mel_nonzero": 500,
+  "mels": 80,
+  "window_samples": 400,
+  "schema": 1,
+  "checkpoint_weights_sha256": "9475b593b04efae004a62b7b8c4ed88e52a514ba6f5c49e0fd49c4d1630c798b",
+  "checkpoint_config_sha256": "358adaae742c3d4dbb1cd86cd2465d1dbca8d8d7f432e83cad0e3de9b6508b4c",
+  "header_sha256": "3b38a5c5aa9f4eae99522644630b29c86a2b3a8773c79241b364d3c71bab38b7"
+}

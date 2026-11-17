@@ -1,5 +1,608 @@
 # Standalone STT readability and recording handoff
 
+## Citrinet-384 on the P4 and on the board recordings — 16 November 2026 (Claude, on the Mac mini)
+
+**Speed and memory on the P4X-EYE** (standalone probe `private/citrinet-p4-probe`, HardwareOne's patched
+ESP-DL 3.3.12, 400 MHz CPU, hex PSRAM 250 MHz, 128 KB L2 with 128-byte lines; model built as HardwareOne
+builds it: whole file in PSRAM, `param_copy=false`, greedy memory manager; one 10 s input, best of 3):
+
+| | Citrinet-384 (quick int8 export) | QuartzNet 15x5 gen2-25397 |
+|---|---|---|
+| Inference, 10 s of audio | **2,099 ms** (210 ms per audio second) | 3,232 ms (323 ms per audio second) |
+| Inference, fixture 0 (6.6 s) | 1,428 ms | 2,171 ms |
+| PSRAM at 10 s: total | 24.5 MB | 21.6 MB |
+| of which weights / activations / other | 22.7 / 1.12 / 0.70 MB | 20.1 / 1.03 / 0.49 MB |
+| Embedded test values (`Model::test`) | **fail**: first output value -8 on the P4, -7 on the host executor | pass (bit-exact) |
+
+- Citrinet is 1.54x as fast: about 0.59 against 0.94 GMAC per audio second. Conv layers are 96% of its time;
+  the squeeze-and-excitation extras (GlobalAveragePool, Sigmoid, Mul) 2.3%; the 384->257 head is the
+  slowest single layer (83 ms per 10 s).
+- **P4 output against the host int8 executor** (second probe run, 08:59, dump mode: 26 inputs, the two
+  fixtures and 4 dev clips per store, int8 inputs and host outputs from `devcheck_ref.py`, which rebuilds the
+  quick export byte for byte): 22 of 26 outputs bit-identical; 4 differ in about half their values (86% of
+  the differences +-1, largest 29), which looks like one rounding difference early in the network carried
+  forward (likely a tie in a squeeze-and-excitation layer; not traced). The argmax moved in 8 of 2,346
+  frames, one of 26 texts changed ("dish honored" -> "dis honored"), and word errors are the same on both:
+  13.64% over 535 words (float 14.02%). The self-test failure costs no accuracy on this sample.
+  Data: Audiodrive `stt/hw1-work/citrinet/p4-probe/devcheck/` (compare.json), dump log in `runs/`.
+- Without the char LM (Citrinet emits WordPiece) the meeting LM's 2.5 MB is not needed; custom words and
+  the LM's noise suppression are lost until a WordPiece-aware decoder exists.
+- The probe's 137 KB of internal SRAM for model bookkeeping (79 KB for the 15x5) goes to PSRAM in
+  HardwareOne, whose runtime installs a PSRAM metadata allocator.
+- Procedure: models uploaded over HTTP to `/sd/STT Probe/` and read back identical; partition table read
+  back; app slot saved; probe written app-only at 0x10000; HardwareOne restored from the saved slot and
+  its settings checked. Logs and binaries on the Audiodrive, `stt/hw1-work/citrinet/p4-probe/`.
+
+**Accuracy on the ten onset-97 board recordings** (same replay and phrases for every system; Citrinet float
+2000 h checkpoint, CTC greedy, no LM; 15x5 int8 exports greedy and with meeting.lm), WER % pooled:
+
+| Group (words) | Citrinet, no LM | best 15x5, no LM | best 15x5 + LM | v2 + LM (shipping) |
+|---|---|---|---|---|
+| ab1 + nb1, 8 recordings | **27.21** | 32.24 (blend) | 30.02 (blend) | 32.14 |
+| n1six, 2 x 72 min | **46.70** | 50.16 (blend) | 47.19 (2000h) | 50.93 |
+| 1 ft, 2 recordings | **28.42** | 37.31 (blend) | 34.58 (blend) | 37.16 |
+| all 10 (20,497 + 1,281 words) | **42.12** | 45.95 (blend) | 43.26 (2000h) | 46.51 |
+
+- With the same (greedy) decode Citrinet beats the best 15x5 on all ten recordings, by 2.2 to 9.7 points.
+  Against the best 15x5 with the LM it wins nine of ten (0.8 to 6.3 points) and loses n1six at 80% by
+  0.6; on the two long n1six sessions together the margin over 2000h + LM is 0.5 points.
+- It produces more short false captions on the nb1 noise clips without an LM (for example 10 captions /
+  19 words at 80% against 1-3 for the 15x5 with the LM).
+- Float: the Studio's full int8 export (102 calibration clips, `export-full-studio-20261116` on the
+  Audiodrive) measures int8 at +0.84 points over float on 600 dev clips (14.44% -> 15.28%; per set +0.64 to
+  +1.64), so the board numbers would rise by about that much on the device.
+- Comparison page (private artifact) and data: Audiodrive `stt/hw1-work/citrinet/report/`.
+
+**Citrinet with the meeting LM** (port stage 4, host reference). `tools/stt_train/lm/hw1lm_wordpiece.py` is
+the HW1LM1 prefix beam search over WordPiece tokens: a word completes when the next word-start piece
+arrives (as a space does in the character decoder), "##" pieces extend it, the apostrophe token joins
+the word before and the piece after (so "it's" is one LM word), special tokens are never emitted, and
+char_prune applies per token. Tests: `test_hw1lm_wordpiece.py` (6, incl. the text join against the training
+tokenizer on 2,000 random sequences). Tuned on the export kit's 600 dev clips only (float, 11,518 words):
+greedy 14.44%, LM weight 0.2 / word bonus 0.75 / beam 32 **12.73%** (flat optimum 12.73-12.83%; beam 64
+12.65%; the 15x5's own setting 0.15 / 0.5 is near the optimum too). On the ten board recordings, same
+phrases as every other system:
+
+| Group | Citrinet + LM | Citrinet, no LM | 15x5 2000h + LM | 15x5 blend + LM | v2 + LM (shipping) |
+|---|---|---|---|---|---|
+| ab1 + nb1, 8 recordings | **26.15** | 27.21 | 30.48 | 30.02 | 32.14 |
+| n1six, 2 x 72 min | **45.06** | 46.70 | 47.19 | 47.39 | 50.93 |
+| 1 ft, 2 recordings | **27.63** | 28.42 | 34.82 | 34.58 | 37.16 |
+| all 10 | **40.61** | 42.12 | 43.26 | 43.30 | 46.51 |
+
+- Citrinet + LM beats the best 15x5 + LM on all ten recordings, by 1.5 to 7.4 points. With the int8 cost
+  measured on dev clips (+0.84) it would be about 41.5% on the device against 43.3%.
+- False words on the nb1 noise clips: 48 for Citrinet + LM (56 without), 32 for 15x5 2000h + LM, 45 blend,
+  79 v2.
+- Scorer: `score_citrinet.py --lm` (h1 folder of the HardwareOne onset work); log-probabilities per phrase
+  cached on the Audiodrive (`stt/hw1-work/citrinet/lm/`), tuning in `private/citrinet-lm/tune.py`.
+
+**80-band front end** (port stage 3). `firmware/components/hw1_stt/stt/citrinet_frontend.{h,cpp}` +
+`citrinet_constants.h` (generated by `tools/stt_p4/frontend/export_citrinet_constants.py` from the pinned
+checkpoint), QuartzNet's front end unchanged. `test_citrinet_frontend.py`: 10 cases against the training
+front end (9 within QuartzNet's tolerance, near-silence no less accurate than the training front end against
+float64), batch / row / ring paths bit-identical, ASan/UBSan clean, and the int8 model input from the C++
+features byte-identical to the export's fixture inputs (186,800 values).
+
+**Device word-piece decoder** (port stage 4, C++). `firmware/components/hw1_stt/stt/stt_lm_wordpiece.{h,cpp}`:
+the reference's search on int8 outputs, reusing `stt_lm.h`'s `Lm` view and `CustomWords` (stt_lm.cpp is
+unchanged). `Pieces` parses vocab.txt; one canonical node per token sequence for the whole decode (a
+(parent, token) index), so prefixes merge exactly as the reference's tuples; beams over the width are cut by
+(score, token sequence), kept in creation order otherwise; one PSRAM workspace sized from the largest
+per-frame candidate count. Parity (`tools/stt_train/lm/parity/wordpiece_parity.py`, C++ built with
+-ffp-contract=off): 2,000 random joins + 353 real int8 outputs (26 host int8, 26 P4 dumps, 150 dev clips,
+151 board phrases) x 5 settings, with and without a hotword list: **all 3,765 texts identical**. The test feeds
+both decoders `hw1lm_wordpiece.log_softmax_int8` (the C++'s own arithmetic: exp per class, summed in class
+order); with numpy's pairwise-summed log_softmax one hotword case in 1,765 flipped on an exact-looking tie
+(-7.098164042 both). ASan/UBSan clean. Workspace at Citrinet's setting (beam 32, prune -7): 329 KB for a
+6.6 s phrase, 764 KB for 16.7 s.
+
+**On the P4** (probe run 16 Nov 10:56, meeting.lm and vocab.txt uploaded to `/sd/STT Probe/` and read back
+identical, probe flashed app-only after the usual checks, HardwareOne restored and its settings checked):
+the 26 check inputs gave the same int8 outputs as the earlier dump run (26/26 sha256) and **the same texts as
+the Mac's C++ (26/26)**: newlib's exp/log changed nothing. LM open 62 ms. Decode 0.17-1.65 s per phrase,
+**90 ms per second of audio** (median 81, max 165; 16.7 s for 186.7 s), workspace 127-764 KB. Word errors on
+those 26 (535 words): int8 + LM 11.78%, int8 greedy 13.64%, float greedy 14.02%. For comparison the 15x5's
+character decoder takes 4.4% of its inference time on the bench (1,023 phrase records of the overnight
+sessions), about 14 ms per audio second. Per second of audio: Citrinet 210 + 90 = 300 ms, 15x5 323 + 14 =
+337 ms (front ends excluded from both). The word-piece decoder is not optimized for the P4 yet (no
+completion memo, plain soft-double arithmetic, no early rejection: the 15x5 decoder has all three).
+
+**Decoder speed-up (exact, 16 Nov).** Three changes that keep every text bit-identical: (1) the per-frame
+log_softmax takes exp from a 256-entry table (q - qmax has 256 values; the same expression, so the same bits)
+and forms log-probabilities only for the d values it needs, the prune set from the monotone threshold on d;
+(2) a word's completion (LM lookup, n-gram score, hotword check) is computed once per prefix node: every word
+start after the same prefix completes the same word in the same context; (3) the beam cut uses partial_sort
+((score, token sequence) is a strict total order, so the kept beams and their order are sort's). Word buffer
+63 -> 31 bytes (build_lm.py keeps LM words of at most 31 bytes; longer open words are OOV either way). On
+the Mac at Citrinet's setting over the 353 parity cases: 1.76 s -> 0.55 s, completions 3.1 M -> 217 k,
+workspace mean 335 -> 300 KB; parity still 3,765/3,765 with and without hotwords, ASan/UBSan clean.
+On the P4 (probe run 16 Nov 11:4x, same 26 phrases, HardwareOne restored and checked after): texts identical
+to the previous P4 run and to the Mac (26/26); **decode 90 -> 21.1 ms per second of audio** (median 19.1,
+max 41.9; 16.7 s -> 3.94 s for 186.7 s), 4.25x; longest phrase 389 ms; workspace max 672 KB, mean 332 KB.
+Per second of audio on the P4, model + LM decode: **Citrinet 210 + 21 = 231 ms, 15x5 323 + 14 = 337 ms**.
+
+**HardwareOne integration (port stage 5, 16 Nov; uncommitted on `claude/stt-onset-3.1` in the hw1-cleanup
+checkout, on top of the uncommitted onset port).** Citrinet is the default local-STT model; QuartzNet is
+compiled out unless chosen. Build flags `ENABLE_STT_MODEL_CITRINET` (1) / `ENABLE_STT_MODEL_QUARTZNET` (0),
+exactly one per build (System_BuildConfig.h errors and the CMake source list agree); `ENABLE_STT_MODEL_15X5_GEN2`
+applies to QuartzNet builds only and on `p4x_eye` follows that choice; the `p4-*` profiles no longer set it and
+`p4-glasses-test-quartznet` builds the 15x5. New in `components/hardwareone/stt/`: `citrinet_runtime.cpp` (the
+shared runtime API of quartznet_runtime.h: same loading, SHA check, admission, resident model with the four
+time rates and the SE tensors, stage loop and decoder hook; arena 9,728 B per output frame; WordPiece greedy
+fallback), the front end, the word-piece decoder, `citrinet_vocab.h`, `stt_model_identity_citrinet384.h`,
+`citrinet-frontend-contract.json` (`tools/stt_p4/package_citrinet.py`) and `citrinet.compile_req.yml`
+(`tools/stt_p4/generate_citrinet_compile_requirements.py`: 7 ops, 6 conv kernels for 282 Conv nodes,
+verified by ESP-DL's finalizer). System_STTLocal.cpp decodes with the word-piece search for Citrinet (LM
+weight 0.2, word bonus 0.75, strength scaling as before); System_STT.cpp's capture-time rows follow the
+model's front end and window reach (`sttFinalRows`). Model file `/sd/STT Models/citrinet384-2000h.p4.stt`
+(22,698,560 bytes, sha256 ddcce67d...; from the Studio's full export). Builds: `p4-glasses-test` 5,720,704 bytes
+(Citrinet objects only in the map), `p4-glasses-test-quartznet` 5,732,544 bytes (QuartzNet only). Host: the
+model-selection test covers three models and every new error (16 cases), `stt_continuous_citrinet` checks
+Citrinet capture rows against its batch rows bit for bit; the full host suite (424 tests) passes after three
+test updates for the new rule (the LM log line now names its decoder, `optional_peripheral_config` expects
+Citrinet by default, `logging_routes` allows the Citrinet runtime's five log lines as QuartzNet's). The handheld
+deployment's board header derives the 15x5 switch like `p4x_eye`'s.
+
+**Bench run on the P4 (stage 6, 16 Nov 12:30-13:12, with the user's go).** Model file uploaded to
+`/sd/STT Models/` (read back identical), Citrinet `p4-glasses-test` flashed app-only after the usual checks
+(identity, partition table, slot backup, hash). First smoke session: model read 3.2 s, SHA OK, resident build
+1.95 MB, captions fine, **but the LM was never used**: `loadLanguageModel` keeps 6 MiB of PSRAM free beside the
+LM (sized for a 30 s QuartzNet call) and with 22.7 MB of weights only ~8.3 MB are free at that point (needs
+2.5 + 6.3). Fix (uncommitted): `kLmReserveBytes` is 3 MiB for Citrinet builds (resident build 1.95 MB + a call's
+~0.6 MB peak), 6 MiB for QuartzNet. **Consequence: Citrinet + LM + speaker labels do not fit together in 32 MB.**
+With the LM loaded, the speaker-label model skips itself (`spk_load ok=0 why=PSRAM short`, it needs 6.2 MB free,
+3.86 MB are); the feature pool still fits. Rebuilt and reflashed (`citrinet-lm3-p4-glasses-test.bin`), then the
+1 ft protocol of the 15x5 run (`run_citrinet.sh` = `run_1ft.sh`: ab1 and nb1 at volume 70, onset 97, x8 / 120 Hz,
+Bluetooth off), recordings pulled, settings restored (autogain on, x1, 36 Hz, Bluetooth on).
+
+| 1 ft, volume 70 | Citrinet + LM (device) | 15x5 gen2 + LM (device, 16 Nov ft1) |
+|---|---|---|
+| ab1 WER (960 words) | **37.29%** (S116 D238 I4) | 41.88% (S186 D203 I13) |
+| nb1 WER (321 words) | **20.56%** | 22.74% |
+| inference per audio second | **188-192 ms** | 275-277 ms |
+| LM decode per audio second | 44 ms ab1 (max 1.1 s, one phrase), 21 ms nb1 | 16-17 ms |
+| caption latency median / p90 | **1.42-1.57 s / 3.0-3.4 s** | 1.92-2.49 s / 3.8-4.1 s |
+| PSRAM low-water | 1.93 MB (no speaker labels) | 1.56 MB (with speaker labels) |
+| segments, overruns, worker / capture stack min free | 76 + 60, 0, 5,064 / 3,016 B | 79 + 58, 0, 4,456 / 3,016 B |
+
+Scored from the device's own captions (`h1/device_score.py`: score.py's alignment, clip assignment, collar and
+normalisation on `startSample`/`endSample`; for the 15x5 it reproduces the host replay, 41.88 vs 41.98 and 22.74
+vs 22.74). Host float Citrinet + LM on the same two recordings: 33.33% ab1, 20.87% nb1. **nb1 matches the host;
+ab1 is 4 points worse on the device** (D 238 vs 189, across every category; 22 clips worse, 3 better), more than
+the 0.84 points int8 cost on dev clips. The device's extra errors are mostly glued words ("personsseifferent",
+"mummorie'child", "lord'afaiain'have" where the host has spaces). The decoder is exact on given logits (3,765/3,765,
+P4 26/26), so the difference is upstream: int8 on far/quiet audio or the device front end. Not traced; the check is
+the host int8 simulation of the full export on these 76 phrases.
+
+**Internal RAM, open:** the internal heap's low-water mark is 94-103 KB in the Citrinet build with Bluetooth off
+before the session, against ~170 KB in every 15x5 session (all with Bluetooth off), and **19 KB with Bluetooth on**
+(both Citrinet smoke sessions; no 15x5 session with Bluetooth on was measured).
+It is already there before the first phrase, so it happens during model load/build, not decoding. Plain ESP-DL
+(the probe) keeps 137 KB of internal metadata for Citrinet's 395 nodes against 80 KB for the 15x5; which of those
+allocations escapes HardwareOne's PSRAM metadata allocator is not traced. Must be fixed before Citrinet ships with
+Bluetooth on. (Steady internal free with Bluetooth on is 204 KB vs 278 KB off; that part is Bluetooth itself.)
+
+**User's call, 16 Nov: Citrinet runs without the LM for now** (greedy, speaker labels kept). `System_STTLocal.cpp`:
+`HW1_STT_CITRINET_LM` (default 0) skips `meeting.lm` in Citrinet builds; 1 restores the word-piece LM decode and the
+3 MiB reserve above (speaker labels then skip themselves). Image 5,715,328 bytes (the decoder is no longer linked).
+Host STT, logging and configuration suites 21/21. Flashed (`citrinet-nolm-p4-glasses-test.bin`) and smoke-tested
+with the normal settings (Bluetooth on, autogain): speaker model loaded (`spk_load ok=1`, 3.35 MB), feature pool
+loaded, PSRAM low point 1.71 MB, no overruns, worker / capture stack min free 5,456 / 4,756 B, caption correct,
+internal-heap low-water 19 KB (the open item above). Where 2-3 MB could come from to fit the LM later: the sttraw
+ring is bench-only (0.26 MB), the speaker model's own 600 KB arena could reuse Citrinet's, the word-piece workspace
+(up to 672 KB) could live in the inference arena, ESP-DL keeps 601 KB of per-channel exponents as 4-byte ints, the
+feature pool (0.78 MB) is optional. None checked yet.
+
+**Memory fit, 16 Nov afternoon (user: "keep working on this and figure out a good answer"; flashing the bench
+P4 as needed approved). Citrinet + `meeting.lm` + speaker labels now run together; `HW1_STT_CITRINET_LM` is 1 again.
+All uncommitted (hw1-cleanup `claude/stt-onset-3.1`, speech repo main).**
+
+*Internal RAM.* A watch on every task's internal allocations (`HW1_STT_HEAP_WATCH=1`, `stt/stt_heap_watch.inc`:
+table copied at each new low, return addresses read off the stack) showed the low point is the "stt" task building
+an ESP-DL model: 171 KB in 3,835 blocks of at most 128 bytes, from `fbs::FbsModel`'s three name maps (prebuilt
+`libfbs_model.a`) and `MemoryManagerGreedy`'s `TensorInfo` records. The existing 128-slot ledger overflowed
+(`complete=0`), which hid it. Fix in the ESP-DL patch: two build-time metadata kinds (`Plan`, `FbsMap`); the
+planner's records, strings, vectors and lists use the metadata allocator; the staged CMakeLists links a copy of
+`libfbs_model.a` whose two undefined symbols `_Znwj` / `_ZdlPvj` are renamed to `hw1_dl_fbs_new` /
+`hw1_dl_fbs_delete` (objcopy; only that object's requests are routed, nothing global). Low point with Bluetooth
+on: 19 KB -> 177 KB; resident build 671 -> 515 ms. QuartzNet builds gain the same way (their dip was about half).
+
+*PSRAM* (`HW1_STT_HEAP_WATCH=2` listed every block at the low point). Three changes, none costing accuracy:
+(1) `ExponentInfo` keeps per-channel exponents as int8 while `hw1_dl_compact_exponents` is set (the STT and
+speaker model builds): 601,352 -> 150,338 bytes for Citrinet. The form is marked in the array pointer's bit 0:
+libfbs_model checks the channel count of every tensor it creates, so `m_size` cannot carry it.
+(2) `tools/stt_p4/repack_espdl.py` rewrites the export with what only a build reads at the end (int64
+per-channel exponents 1.2 MB, parameter dims and names, the two test tensors): same model field by field
+(checked), 22,700,144 bytes, `keep_bytes` 21,383,888. `package_citrinet.py` packages it by default and writes
+`kResidentKeepBytes`; `citrinet_runtime.cpp` shrinks the image in place (heap realloc) once the resident model
+is built (`TL e3t`: 1,316,256 bytes back), keeps that model for as long as the weights (changing hands zeroes
+its arena instead of deleting it) and reloads the file for a call the resident model cannot take.
+(3) The word-piece decoder takes lent scratch memory (`DecodeScratch`): the runtime moves the logits to the
+start of the resident model's arena and lends the rest (up to 0.67 MB per phrase no longer allocated; parity
+3,765/3,765 with lent memory at an odd address and old content). Speaker reserve 3 -> 1.5 MiB for Citrinet.
+New artifact `citrinet384-2000h.p4.stt`: 22,700,240 bytes, sha256 3781e173...; the previous one is kept as
+`citrinet384-2000h.as-exported.p4.stt` in the export folder. The bench card has the new file.
+
+*A bug found by the on-device self-check* (`HW1_STT_SELFCHECK=1`: one fixed 500-frame input through fresh
+per-call models and through the resident model, SHA-256 of the logits). The resident model's output depended
+on what its arena held, and a per-call model with the prepare pass differed from one without: the prepare pass
+ran after the input was written, and Citrinet's GlobalAveragePool, Sigmoid and Mul (not in the pass's skip
+list: Conv, Add, LUT, Relu) computed in it on stale activations and wrote their outputs, some of them over the
+place the planner shares with the model input. Every Citrinet phrase on the device until then, stage 6
+included, ran on a partly overwritten input. Fix: the pass runs before the front end writes the input, and the
+three ops return in it. After it all eight variants give the same bytes (per-call int / byte exponents /
+prepared, resident, resident again, trimmed image, arena zeroed, arena 0xA5). QuartzNet's graph has only the
+four skipped ops and was not affected (its device captions match the host replay).
+
+*Bench with everything on* (`run_memfit.sh`, the 1 ft protocol, 17:09-17:32; LM, speaker labels, trim; 0 overruns,
+internal low 177 KB, PSRAM low 1.44-1.46 MB with the sttraw ring, 384 + 275 decodes of which 2 on the heap):
+
+| 1 ft, volume 70, this take | Citrinet device (int8 + LM) | Citrinet host (float + LM) | 15x5 gen2 host (int8 + LM) |
+|---|---|---|---|
+| ab1 WER | 41.88% (S123 D276 I3) | 38.33% | 49.06% |
+| nb1 WER | 21.81% | 19.63% | 33.33% |
+| processing per audio second | 254 / 227 ms (fe 26, model 180, decode 46 / 20) | | 301 / 298 ms on its own ft1 take |
+| caption latency median / p90 | 1.58 / 3.22 s and 1.71 / 3.42 s | | 1.92-2.49 / 3.8-4.1 s |
+
+The take is noisier than the earlier ones (quietest tenth of 0.1 s frames 107 against 79 RMS; the user was in the
+room and may have spoken): the host float model scores 38.3% on it against 33.3% on the stage-6 ab1 take, so
+device numbers of different takes are not comparable. On the same recordings the device stays 2.2-3.6 points
+behind the host float model after the fix (stage 6: 4.0 and -0.3): the prepare-pass bug was not the main cause of
+that gap. Still open: int8 on far speech or the device front end (host int8 simulation of these phrases).
+With all three loaded the feature pool does not fit its own 2 MiB rule: features are computed at transcription
+time (fe 26 ms per audio second against 5).
+
+**Next:** clean-room repeat of the bench if device numbers against the earlier takes are wanted; the int8 / front-end
+check of the device gap. The bench P4 runs `citrinet-memfit13.bin` (rollback:
+`board/flash/app-slot-backup-20261116-082737.bin`, which needs the 15x5 file only); the speech repository's own
+firmware example still runs QuartzNet.
+
+**Export kit:** `private/citrinet-export-kit` ran end to end on the Mac mini and on the Mac Studio (quick
+run); both produced identical tensors, graphs, fixtures and WER (file bytes differ only in FlatBuffer
+order). Full export on the Studio, 16 Nov 07:47-08:31: 22,698,464 bytes, sha256 2d1d8819..., same six
+operator types, embedded test values byte-exact, output exponent -1. Not yet run on the P4 (the probe runs
+used the quick export, whose layers are the same).
+
+## Overnight board session on HardwareOne with the onset — 16 November 2026 (Claude, on the Mac mini)
+
+This is the first time the v3.1 onset ran on a P4. Board plan section 6 H3, plus the 40% and 80% volume
+re-tests and a quiet room.
+
+**Images:**
+- Before: HardwareOne `claude/cleanup-1` 46c293dd, which runs HardwareOne's earlier judge at 97. The
+  running slot's ELF sha256 equals the archived build.
+- After: the same commit plus the onset port (uncommitted, branch `claude/stt-onset-3.1`), written
+  app-only at 0x10000 after the partition table read-back and an app-slot backup.
+- The board was left on the onset image.
+
+**Conditions:**
+- Playback: the Mac mini speaker; the board sits much closer than the earlier 1 ft bench. Speech is about
+  10-15 dB louder than the 8 Nov 1 ft recording `fa73dca6` (1 s levels: median 315 against 104, 90th
+  percentile 1,139 against 206).
+- Mic chain fixed at PDM x4 / 120 Hz, auto gain off. Auto gain had stepped x8 → x4 after three loud
+  sessions, and x8 clipped at this distance.
+- Bluetooth off (`bleenabled 0`, `closeble`).
+- `sttraw` on for every session.
+- The original settings were restored at the end: auto gain on, saved x1 / 36 Hz, `sttdecisionpre` 97,
+  Bluetooth on.
+- Each session ran once.
+
+**Device-side results** (all sessions):
+- 0 audio overruns and no errors. The decode queue never held more than 1 phrase.
+- `stt` task stack free, low point: 4,456 B after the port against 3,192 B before. The port puts the
+  segmenter in PSRAM per session, which frees about 1.3 KB of the 12,288-B stack.
+- `stt_capture` stack free, low point: 2,888-3,232 B after the port, 2,920-3,000 B before.
+- `stt_capture` CPU, mean ‰ of one core over `perftop` 0.5 s windows:
+
+  | Detector | Mean ‰ |
+  |---|---|
+  | Onset 97 | 31-33 |
+  | Onset off, same image | 19 |
+  | HardwareOne judge 97 | 18-21 |
+  | Raw only, before image | 17 |
+
+  So the onset adds about 0.12-0.14 ms per 10 ms frame. The peak 0.5 s window was 81 ‰.
+
+| Image | Session | Playback volume % | Phrases | stt / capture stack free (B) | stt_capture ‰ |
+|---|---|---|---|---|---|
+| before | ab1, raw only | 70 | 80 | 3,192 / 3,000 | 17.2 |
+| before | ab1, judge 97 | 70 | 83 | 3,192 / 3,000 | 20.6 |
+| before | nb1, judge 97 | 70 | 64 | 3,192 / 2,920 | 18.2 |
+| after | ab1, onset off | 70 | 84 | 4,456 / 3,016 | 18.7 |
+| after | ab1, onset 97 | 70 | 80 | 4,456 / 2,888 | 32.0 |
+| after | nb1, onset 97 | 70 | 59 | 4,456 / 3,016 | 31.2 |
+| after | ab1 / nb1, onset 97 | 40 | 82 / 58 | 4,456 / 3,016 | 32.4 / 31.5 |
+| after | ab1 / nb1, onset 97 | 80 | 80 / 62 | 4,456 / 3,016 | 32.7 / 32.4 |
+| after | n1six (72 min), onset 97 | 40 | 656 | 4,456 / 3,016 | 32.8 |
+| after | n1six (72 min), onset 97 | 80 | 645 | 4,456 / 3,016 | 33.4 |
+| after | quiet room, 90 min, nothing playing | 0 | 164 | 4,456 / 3,232 | 28.1 |
+
+**Accuracy (host replay of each session's raw audio, every arm on the same audio).**
+- Scoring setup:
+  - Decoder: gen2-25397 int8 + `meeting.lm`.
+  - Replay: HardwareOne's `stt_raw_replay` from the port; a pre-port build gives the judge arm.
+  - Each WER % below is from one session.
+- Reproduction check: the older HardwareOne recordings replayed through the port give the speech repo's
+  numbers exactly (off → onset 97):
+
+  | Recording | Off | Onset 97 |
+  |---|---|---|
+  | ee4c | 74.58 | 52.50 |
+  | 076a | 71.25 | 45.21 |
+  | e8f9 | 56.67 | 43.44 |
+  | nb1 63c8 | 28.35 | 26.79 |
+  | close 7c93 | 20.64 | 21.18 |
+
+  The five 8 Nov auto-gain close takes differ by at most 0.54 points between off and onset, in both
+  directions.
+
+| Session | Off | **Onset 97** | g135 | g300h | Judge 97 |
+|---|---|---|---|---|---|
+| ab1, 70% (onset image take) | 29.79 | **29.79** | 29.69 | 28.85 | 29.38 |
+| ab1, 70% (second take, onset off on the device) | 26.67 | 27.19 | 26.77 | 26.15 | 26.77 |
+| nb1, 70% | 21.18 | **20.25** | 19.63 | 20.56 | 21.50 |
+| ab1, 40% | 47.50 | **42.50** | 42.19 | 42.50 | 43.02 |
+| nb1, 40% | 26.79 | **28.35** | 27.73 | 26.79 | 28.35 |
+| ab1, 80% | 27.60 | **27.19** | 27.08 | 27.29 | 26.15 |
+| nb1, 80% | 19.63 | **18.69** | 19.00 | 19.94 | 19.94 |
+| n1six, 40% (8,327 scored words) | 57.72 | **56.29** | | | 56.21 |
+| n1six, 80% | 46.08 | **45.57** | | | 45.74 |
+
+- **What the table shows:**
+  - At this distance the arms are within about a point of each other, except ab1 at 40%, where the onset
+    gains 5 points over raw only. The onset and the judge are level overall.
+  - False words on nb1 noise: at 40%, 14 for the onset against 18 for off; at 80%, both 34.
+  - These recordings cannot show the far-speech gain the onset was built for: the board was close.
+    A 1 ft (or farther) placement is still needed.
+- **Quiet room, 90 min, nothing playing:** every arm opens about 107-109 phrases per hour and spends
+  about 24 of the 90 minutes inside phrases. The host decoder produced **0 words** in every arm (judge
+  included); the device's own captions gave 1 in 90 minutes. That is well under the board plan's
+  10-per-hour limit. The cost is decode time on room noise, at all arms, at this gain.
+
+**Models, all with the onset 97/150.** Host decode with each model's own int8 export (2^-24 front end;
+the -g30 packages need the other branch). WER % (errors / words):
+
+| Session | v2 gen2-25397 | v3 | v3-1000h | v3-2000h | v3-blend |
+|---|---|---|---|---|---|
+| ab1, 70% | 29.79 (286) | 29.69 (285) | 28.12 (270) | 28.12 (270) | 28.12 (270) |
+| nb1, 70% | 20.25 (65) | 19.63 (63) | 17.76 (57) | 17.45 (56) | 16.51 (53) |
+| ab1, 40% | 42.50 (408) | 41.88 (402) | 41.98 (403) | 40.62 (390) | 39.90 (383) |
+| nb1, 40% | 28.35 (91) | 28.66 (92) | 27.10 (87) | 26.79 (86) | 25.23 (81) |
+| ab1, 80% | 27.19 (261) | 26.98 (259) | 26.88 (258) | 26.98 (259) | 26.25 (252) |
+| nb1, 80% | 18.69 (60) | 19.00 (61) | 18.69 (60) | 17.13 (55) | 17.45 (56) |
+| n1six, 40% (8,327 words) | 56.29 (4,687) | 54.38 (4,528) | 53.55 (4,459) | 52.02 (4,332) | 52.25 (4,351) |
+| n1six, 80% | 45.57 (3,795) | 45.00 (3,747) | 43.69 (3,638) | 42.36 (3,527) | 42.52 (3,541) |
+
+The order matches confirm-2 (v2 2,050 … blend 1,714). Over the six ab1/nb1 rows (3,843 words): v2
+30.47%, v3 30.24%, 1000h 29.53%, 2000h 29.04%, **blend 28.49%**. On n1six at 40%, 2000h and blend are
+level (52.0 against 52.3), about 4 points better than v2; at 80% likewise (42.4 against 42.5, v2 45.6).
+Over all eight rows (20,497 words): v2 47.09%, v3 46.04%, 1000h 45.04%, **2000h 43.79%**, blend 43.85%.
+Whether the 2^-30 front end (blend-g30) gains
+more on this audio is not measured here.
+
+**1 ft placement (06:24-06:45, after the overnight sessions).** The board moved to about 1 ft from the
+Mac mini speaker, mic chain fixed at x8 / 120 Hz (the 8 Nov 1 ft gain), auto gain off, Bluetooth off,
+onset 97 on the device, ab1 and nb1 at volume 70. Speech arrived 3-5 dB below the 8 Nov 1 ft recording.
+Device: 0 overruns, decode queue at most 1, `stt` stack low point 4,456 B, `stt_capture` 3,016 B,
+`stt_capture` CPU 31-32 per mille on average (max 47). ab1: 79 phrases, nb1: 60.
+
+Host scoring of the pulled recordings, gen2-25397 (v2), WER % per detector arm:
+
+| Recording | off (raw only) | onset 97 | g135 | g300h | judge 97 |
+|---|---|---|---|---|---|
+| ab1, 1 ft | 43.02 | 41.98 | 41.88 | 41.15 | 40.62 |
+| nb1, 1 ft | 24.92 | 22.74 | 22.74 | 23.36 | 23.99 |
+
+Models with the onset 97/150:
+
+| Recording | v2 | v3 | v3-1000h | v3-2000h | v3-blend |
+|---|---|---|---|---|---|
+| ab1, 1 ft | 41.98 | 40.31 | 40.42 | **38.65** | 39.17 |
+| nb1, 1 ft | 22.74 | 23.05 | 23.36 | 23.36 | **20.87** |
+
+- The onset gains 1-2 points over raw only at 1 ft (ab1 -1.0, nb1 -2.2); the noise controls change little.
+  The earlier judge is level with it (better on ab1, worse on nb1). One take each, so differences of a
+  point are within take-to-take noise.
+- 2000h is best on ab1 and blend on nb1; both beat v2 by 2-3 points.
+- After the restore `sttdetector` reports `pdmAmplify` 8 / 120 Hz while `pdmamplify` and `pdmhpf` read
+  x1 / 36 Hz (saved). That is the normal reading with auto gain on: `sttdetector` shows the auto gain's
+  working chain, the saved values are the manual ones. The 15 Nov 22:14 reading before any test was the
+  same (auto gain on, x8 / 120 Hz), and so was the reading after the 16 Nov 08:30 reboot.
+
+**Problems found and fixed during the session (bench tooling, not firmware):**
+- An `stt start` client over serial must `stt next` / `stt ack` each caption. Otherwise the 8-entry text
+  queue fills and the session fails: "STT text queue full; receiver must acknowledge results".
+- Console JSON can follow a `$ ` prompt on the same line.
+- Chaining esptool steps with `--before no_reset` and then a hard reset left the P4 in download mode. A
+  `--before default_reset --after hard_reset` call boots the app.
+- `bleautostart off` does not keep the glasses and ring client stack off at boot; `bleenabled 0` does.
+- Auto gain moves between sessions when the board is close; fix the mic chain for A/B runs.
+
+**Not done:**
+- A live talker at 1 ft and 3 ft.
+- A far placement beyond 1 ft (1 ft done once, above) for the far-speech claim.
+- Glasses sessions.
+- The leveler (4bc86e67 is not merged).
+- blend-g30 / 2000h-g30.
+- Repeat takes: one take per condition.
+- The device's own captions were not scored. The host replay decodes offline, not as the device
+  streams.
+
+Files (private): HardwareOne checkout `experiments/stt_p4/private/onset-3.1/` (`board/sessions/*`
+summaries and samples, `h1/night/*` scores, `board/flash/` slot backup), and raw audio on the Audiodrive
+under `stt/hw1-work/onset-3.1/raw/`.
+
+## H1 host replay of HardwareOne's gain chain and the glasses — 16 November 2026 (Claude, on the Mac mini)
+
+[STT_BOARD_TEST_PLAN.md](STT_BOARD_TEST_PLAN.md) section 6, H1, on the five 8 Nov HardwareOne 0.99.99
+recordings. These predate the leveler and the glasses session gain.
+
+**Setup.**
+- Decoder: `tools/sttraw_ab/score.py`, deployed gen2-25397 int8 + `meeting.lm`.
+- Replay: HardwareOne's own `stt_raw_replay`, two builds.
+  - The ported one (branch `claude/stt-onset-3.1`) gives the arms off, onset 97 (gain 150),
+    g135 (`--decision-mod 135`) and g300h (`--decision-mod 300 --decision-hold 1`).
+  - One built from 18534fa6 gives the earlier judge at 97.
+- Glasses recordings were aligned with `--align envelope`, as the stored scores were. With the default
+  waveform alignment, 395b722c failed (2 of 18 windows kept), because LC3 audio drifts about 0.5%.
+
+**Reproduction checks, all passed:**
+- "Off" (raw only) is segment-for-segment identical between the ported and pre-port replays on all
+  five recordings.
+- Off and the judge reproduce every stored WER exactly.
+- The glasses alignment fits are identical to the stored ones.
+
+WER % (substitutions / deletions / insertions); false captions on noise items as segments / words:
+
+| Recording | Input | Off (raw only) | Judge 97 (before the port) | **Onset 97** | g135 | g300h |
+|---|---|---|---|---|---|---|
+| `fa73dca6` ab1 | onboard x8, 120 Hz | 59.27 (144/422/3) | 43.23 (202/204/9) | **45.21** (228/193/13) | 44.79 | 47.19 |
+| `b0325933` ab1 | onboard x8, 120 Hz | 70.21 (105/565/4) | 46.56 (198/239/10) | **46.67** (200/241/7) | 46.25 | 51.46 |
+| `395b722c` ab1 | glasses | 29.27 | 28.44, noise 2/2 | **28.75**, noise 2/2 | | |
+| `834e8be1` ab1 | glasses | 70.94 | 68.65, noise 1/1 | **67.81**, noise 0/0 | | |
+| `ef8764fe` nb1 | glasses | 37.69, noise 2/3 | 35.83, noise 1/1 | **35.20**, noise 2/3 | | |
+
+No false words on noise or silence for any onboard arm.
+
+**Rules from the board plan (thresholds fixed before scoring):**
+- **Onboard x8: fails on one recording.** The rule is onset ≤ judge + 1 point on each recording, and
+  false words not above the judge's.
+  - `fa73dca6` is +1.98 points: 434 errors against 415 over 960 words.
+  - `b0325933` is +0.11 points.
+  - The third x8 recording, `e8f93103` (13 Nov, no leveler), was −0.21 (43.44 against 43.65).
+  - Over these two recordings the onset has 882 errors over 1,920 words and the judge 862, a 1.0-point
+    gap. Gate 135 has 874.
+  - On `fa73dca6`, 15 of the 19 extra errors are in the quiet categories: ls-quiet 76 against 67 and
+    syn-quiet 71 against 65. Raw only would have 163 and 118 there.
+  - Against raw only, the onset removes 361 of 1,243 errors.
+- **Glasses: the default stays 97.** On all three recordings the onset is not worse than off (−0.52,
+  −3.13 and −2.49 points), and false words on nb1 noise are 3, the same as off. Against the judge the
+  onset is +0.31, −0.84 and −0.63 points.
+- **Gate 300 + hold** costs 2.0 and 4.8 points against onset 97 onboard, as on the speech repo's
+  recordings.
+
+**Not covered by H1:**
+- The leveler (4bc86e67) and the glasses session gain: no recording has them.
+- Quiet-room and overnight false captions.
+- Any device-side measurement.
+- `decision_gain_pct` was not tuned for x8 audio (150 was picked on x1 `ee4c9cea`); a sweep on these
+  two recordings would be in-sample.
+
+Outputs (caption text, private): the HardwareOne checkout's ignored
+`experiments/stt_p4/private/onset-3.1/h1/` and the Audiodrive's `stt/hw1-work/onset-3.1/h1/`.
+
+**Since the 15 Nov section below:**
+- `claude/cleanup-1` moved to 46c293dd. That adds six 1.0 commits; none touches STT or settings files.
+- The port was reapplied on it unchanged. The patch reproduced all 25 files byte for byte before the
+  move; afterwards there were no conflicts and the diff is the same, 20 modified files and 5 new ones.
+- The bench P4 runs 46c293dd, which makes it the board "before" image.
+- The board's HTTP problem was its network, now fixed by the user.
+
+## HardwareOne port of 3.1, integration step 2 — 15 November 2026 (Claude, on the Mac mini)
+
+Onset and opt-in noise controls ported into HardwareOne on the current model (gen2-25397 + `meeting.lm`).
+Frontend, log guard, overlap gate and speaker path untouched. **Not committed, not flashed, not run on a P4.**
+
+**Where.** HardwareOne branch `claude/stt-onset-3.1`, created from `claude/cleanup-1` at 18534fa6; the
+port is uncommitted in that checkout. The leveler commit 4bc86e67 (GitHub branch `leveler-glasses-gain`)
+is not merged: it branches from 5cea049a + the 0.99.99.1 squash, not from cleanup-1's history.
+
+**Mapping against [STT_ENGINE_INTEGRATION.md](STT_ENGINE_INTEGRATION.md) (written at 4bc86e67):**
+- `stt_segmenter.h` at 4bc86e67 and at 18534fa6 differ only by the VAD-policy include: cleanup-1 renamed
+  `Audio_VadPolicy.h` to `System_AudioVadPolicy.h`. `stt_continuous_config.h`, `quartznet_frontend.{h,cpp}`,
+  `stt_raw_replay.cpp`, `test_stt_segmenter.py` and `test_stt_raw_replay.py` are byte-identical.
+- Every counterpart in section 2 is still there: `sttDetectorProfileFor`, `kWorkerStackBytes` 12,288,
+  `kCaptureStackBytes` 8,192, `StreamRun run` local in `sttContinuousWorker`, the `"decision_pre"` sidecar
+  field, `--decision-pre`, and the clamp at `stt_segmenter_harness.cpp:421`. Line numbers in
+  `System_STT.cpp` moved by hundreds.
+- Not in cleanup-1: the within-phrase leveler (`sttPhraseLevel`, `TL phrasegain`), `sttg2autogain` and the
+  glasses session gain. These all come from 4bc86e67. The 0.99.99 `sttautogain` (x8 / 120 Hz) is present.
+- 4bc86e67 uses the pre-cleanup names (`gSTTMux`, `gSTT`, `STTToken`, `STTState`), which cleanup-1
+  renamed (`gSttMux`, ...). It must be cherry-picked with those renames, keep `cmd_sttdetector`'s
+  `out[512]` (the merged reply needs up to about 404 B), and then regenerate `docs/COMMAND_REFERENCE.md`.
+- `test_stt_segmenter.py` was not registered with CTest (it now is). `test_stt_runtime.py` is unregistered
+  and fails to compile at 18534fa6 already. `experiments/stt_p4/frontend/contract.py --check` already says
+  "Frontend contract is stale" at 18534fa6. Both predate this port; the second matters for change 3.
+
+**What changed in HardwareOne:**
+- `stt/stt_segmenter.h`: the 3.1 header, differing only by that include. HardwareOne's judge is gone.
+- `continuousSegmenterConfig`: onset 0..100 and gain 150 always; new `decisionModulationPct`
+  (1..100 -> 101, above 1000 -> 1000) and `decisionPreHold`; marker `kContinuousDetectorVersion` "v3.1".
+- Settings: `sttdecisionpre` / `sttg2decisionpre` are now 0..100, default 97. New settings, all off by
+  default: `sttdecisionmod` (0 or 101..1000; the command refuses 1..100) and `sttdecisionhold`, plus
+  `sttg2decisionmod` and `sttg2decisionhold`.
+- `stt status`, `sttdetector` and the `sttraw` sidecar report `"detector":"v3.1"` and the effective
+  `decision_pre`, `decision_gain_pct`, `decision_modulation_ratio_pct` and `decision_pre_hold_requires_raw`
+  (gain and controls are 0 while the onset is off).
+- `stt_raw_replay` takes `--decision-gain`, `--decision-mod` and `--decision-hold`.
+- Rollback:
+  - `sttdecisionpre 0` gives the raw level only, the 1a51eac detector bit for bit.
+  - Build flag `ENABLE_STT_LEVEL_ROBUST_ONSET 0` (configuration `p4-glasses-test-prev-onset`) forces 0 in
+    every session and leaves saved settings alone; this is the counterpart of `sdkconfig.prev_onset`.
+  - HardwareOne's old judge needs the previous image (saved: 18534fa6 glasses-test).
+- **Stack (found in review, fixed):** a 0.99.99 continuous session on the bench P4 (7 Nov,
+  `sttraw-bench/run1`) already went down to `workerStackFreeBytes` 2,664 B of 12,288 B with the 1,288-B
+  segmenter. 4,472 B in `StreamRun` would overflow the `stt` stack. The segmenter now lives in PSRAM per
+  session (`ps_alloc`, wiped and freed with the session's other buffers). The `stt` stack should be about
+  1.3 KB less used than before the port. This is unmeasured; `push()` now touches PSRAM state per sample.
+  The capture stack minimum in the same logs was 2,312 B of 8,192 B; `push()` goes about 450 B deeper.
+
+**Host tests (Mac mini, ASan/UBSan where marked):**
+- Full CTest suite: 421 of 421 run tests pass. The 4 browser suites are disabled (no Node.js) and
+  `power_p4_clock_iram` is skipped, as before.
+- New `stt_segmenter_decision`: U1-U16 (15 case groups), option-0 hash 10559851243095114257 and production
+  hash 3709073732580116122 equal their goldens, 11 of 11 mutants detected. Not run: the git-based base
+  builds, because HardwareOne has no 1a51eac history.
+- New `stt_segmenter_boundaries`: modes 0-11, 1,440 chunk comparisons and 2,346 reference segments.
+- `stt_segmenter` (now registered) and `stt_raw_replay`: a quiet near-Nyquist phrase opens only with
+  `--decision-pre 97`; output is chunk-invariant with the onset and noise controls on.
+- The pipeline case runs on HardwareOne's continuous broker (`testLevelRobustOnset`, ASan). A sub-floor
+  2.5 kHz talker gives 0 phrases off and 4 at 97 (2 at the 10 s cap). Every phrase is exactly its source
+  samples and none is dropped. It also passes `--full-phrase`, `--speakers` and the new
+  `stt_continuous_prev_onset` (0 phrases at 97).
+- With 97 as the harness default (one-off scratch run), all broker cases pass except one trailing-trim
+  case: the voiced end lands one 10 ms frame later, from pre-emphasis spill at a synthetic step to digital
+  zero. Not a defect; real audio has no such step.
+
+**ESP-IDF 5.5.5 build** (with the PIE patch), `p4x_eye --config p4-glasses-test`, 15x5 gen2:
+
+| Build | App image | Static D/IRAM | .data / .bss | Flash .text / .rodata |
+|---|---|---|---|---|
+| 18534fa6 (before) | 5,722,576 B | 194,584 B | 27,752 / 55,984 | 3,373,990 / 2,205,192 |
+| port, onset on | 5,728,928 B (+6,352) | 194,672 B (+88) | 27,816 / 56,008 | 3,378,374 / 2,207,096 |
+| port, `p4-glasses-test-prev-onset` | 5,728,864 B (+6,288) | 194,672 B | 27,816 / 56,008 | 3,378,310 / 2,207,096 |
+
+- App slot 0x715000, about 1.66 MB free.
+- `sizeof(Segmenter)` on RV32 is 1,288 -> 4,472 B, `SegmenterConfig` 60 -> 64 B. The segmenter is
+  allocated per session in PSRAM, so it is not in static RAM.
+- No warnings in the changed files.
+
+**Board: not run.** Before any flash, the bench P4 (identified by its USB serial) did not answer:
+- esptool `chip_id`, twice: "No serial data received";
+- HTTP at its saved address;
+- 4 s of passive console.
+
+Nothing was written to it. Next: unplug and replug it, then do these steps from the board plan:
+1. partition table read-back;
+2. app-slot rollback image;
+3. app-only write at the verified offset.
+
+Also needed: the console login and the Audiodrive (playlists `ab1`/`nb1`, H1 recordings). Live-talker
+takes need a person.
+
+**Still open (nothing below is measured):**
+- On the P4: CPU per frame (`taskstats`/`perftop` stt_capture share, 0 vs 97), `workerStackFreeBytes`
+  and `captureStackFreeBytes`, `audioOverruns`/dropped phrases, `pendingAudio` and close latency (`sttperf`)
+  under 2.2-2.7x decode audio, quiet-room false captions over an evening and overnight, and a live talker
+  at 1 ft and 3 ft.
+- H1 host replay of the 8 Nov x8 and glasses recordings. The glasses default stays 97, unmeasured on
+  glasses audio.
+- The leveler interaction (H2/H3): it needs the 4bc86e67 cherry-pick.
+- Scoring convention: with HardwareOne's ported `stt_raw_replay`, score.py's "production" arm (no
+  options) is now raw-only. The device default needs `--arm onset97="--decision-pre 97"`, and the board
+  plan's `judge97` arm needs a replay built from 18534fa6 or earlier.
+
 ## Version 3.1 — 15 November 2026 (Claude)
 
 Version 3.1 is engine, tooling and training-code work. The device model is still v2 `gen2-25397`; Voice Model 3
