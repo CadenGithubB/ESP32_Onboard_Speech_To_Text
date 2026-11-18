@@ -7,7 +7,7 @@
 // optional speaker model on the card, each caption is numbered by who said it (speaker.h).
 //
 // Put two files in a folder named "STT Models" on a FAT microSD card:
-//   citrinet384-2000h.p4.stt          the model this build is pinned to
+//   citrinet384-2000h-c90.p4.stt      the model this build is pinned to
 //   meeting.lm                        the language model (optional; less accurate without it)
 //   speaker.spk                       the speaker model (optional; no speaker numbers without it)
 // then build, flash and talk. Captions are also printed on the serial console.
@@ -46,7 +46,7 @@ namespace {
 // Files on the card. The engine checks the model's size and SHA-256 against
 // components/hw1_stt/stt/stt_model_identity_citrinet384.h and refuses anything else.
 constexpr const char* kMountPoint = "/sd";
-constexpr const char* kModelPath = "/sd/STT Models/citrinet384-2000h.p4.stt";
+constexpr const char* kModelPath = "/sd/STT Models/citrinet384-2000h-c90.p4.stt";
 constexpr const char* kLmPath = "/sd/STT Models/meeting.lm";
 
 // ESP32-P4-EYE wiring. Another P4 board: change these.
@@ -349,7 +349,7 @@ extern "C" void app_main() {
   if (const size_t words = vocabulary::load()) printf("Vocabulary: %u of your words\n", unsigned(words));
   struct stat st = {};
   if (stat(kModelPath, &st) != 0)
-    halt("model file missing: the card needs \"STT Models/citrinet384-2000h.p4.stt\"");
+    halt("model file missing: the card needs \"STT Models/citrinet384-2000h-c90.p4.stt\"");
 
   vTaskPrioritySet(nullptr, 2);
   gPipelineMutex = xSemaphoreCreateMutex();

@@ -3,7 +3,7 @@
 //   PDM microphone -> phrase segmenter -> Citrinet-384 (int8) + word language model -> serial console
 //
 // Put two files in a folder named "STT Models" on a FAT microSD card:
-//   citrinet384-2000h.p4.stt          the model this build is pinned to
+//   citrinet384-2000h-c90.p4.stt      the model this build is pinned to
 //   meeting.lm                        the language model (optional; less accurate without it)
 // then build, flash, open the serial monitor and talk. Live drafts appear while you speak
 // and the final caption replaces them when you pause.
@@ -35,7 +35,7 @@ namespace {
 // Files on the card. The engine checks the model's size and SHA-256 against
 // components/hw1_stt/stt/stt_model_identity_citrinet384.h and refuses anything else.
 constexpr const char* kMountPoint = "/sd";
-constexpr const char* kModelPath = "/sd/STT Models/citrinet384-2000h.p4.stt";
+constexpr const char* kModelPath = "/sd/STT Models/citrinet384-2000h-c90.p4.stt";
 constexpr const char* kLmPath = "/sd/STT Models/meeting.lm";
 
 // ESP32-P4-EYE wiring. Another P4 board: change these.
@@ -284,7 +284,7 @@ extern "C" void app_main() {
   if (const char* failure = mountCard()) halt(failure);
   struct stat st = {};
   if (stat(kModelPath, &st) != 0)
-    halt("model file missing: the card needs \"STT Models/citrinet384-2000h.p4.stt\"");
+    halt("model file missing: the card needs \"STT Models/citrinet384-2000h-c90.p4.stt\"");
 
   vTaskPrioritySet(nullptr, 2);
   gPipelineMutex = xSemaphoreCreateMutex();

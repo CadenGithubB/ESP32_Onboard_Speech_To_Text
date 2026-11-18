@@ -70,6 +70,11 @@ class StreamPipeline {
   bool cancelled(const StreamWork&);
   // Complete releases work ownership. Copy/emit final text before calling this.
   void complete(const StreamWork&, bool ok, const char* text, const STTLocalStats&, uint32_t elapsed_ms);
+  // Capture-time rows: log_mel_frame_ring and log_mel_frame (quartznet_frontend.h) leave
+  // workspace->conditioned untouched except when it is their output, so its 512 floats may
+  // stage up to eight 64-bin rows on the workspace's single owning thread. No other workspace
+  // field may alias the output, and compute_features uses conditioned itself: commit staged
+  // rows before reusing the workspace.
   bool enableFeatures(int16_t* ring, size_t ring_samples, float* first, float* second);
   bool featureTake(StreamFeatureWork&);
   void featureComplete(const StreamFeatureWork&, const float* row, bool ok);
