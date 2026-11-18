@@ -1,5 +1,63 @@
 # Standalone STT readability and recording handoff
 
+## Standalone apps on Citrinet-384 90/10 — 17–18 November 2026 (Claude, on the Mac mini)
+
+Branch `citrinet-standalone`, three commits on `main` (829a391, 1d84326, c0fe637), **local only, not pushed**:
+the user chose to push after the board test.
+
+**What changed.**
+- Engine: Citrinet-384 is the default acoustic model (`HW1_STT_MODEL` = `citrinet` or `quartznet` per build),
+  with the word-piece LM search. `stt_auto_gain.h` copied unchanged from HardwareOne.
+- `screen_captions`: the PDM converter's own gain (x1..x8) and a 35.5 Hz high-pass replace the software
+  multiplier. `Mic gain` is `auto` by default (starts at x8); fixed x1/x2/x4/x8 remain. HardwareOne votes
+  once per session; the app has no sessions, so it votes once per 60 s of listening that produced a final
+  caption (that adaptation is new and unqualified). Settings key moved to `settings2`, so saved settings
+  reset once. Reads `STT Models/user_vocab.tsv` (all or nothing) into the decoder's custom words and
+  `hw1_transcript::format`; raw captions still go to the serial log unchanged.
+- `simple_captions`: fixed x8 and the same high-pass.
+- `models/STT Models/`: `citrinet384-2000h-c90.p4.stt` (sha256 0b0fd358..., 22,700,592 bytes),
+  `meeting.lm`, `speaker.spk`, an example vocabulary, `models/SHA256SUMS`, and `models/README.md` with
+  accuracy, sources and licences. Both apps are pinned to the c90 file name.
+- `quartznet_frontend.h` now matches HardwareOne's byte for byte (a comment moved to `stt_stream.h`), so the
+  Citrinet front-end contract (4b00ac08...) and therefore the model envelope are identical in both
+  firmwares: one `.p4.stt` serves both once HardwareOne's identity header is regenerated.
+
+**The c90 model.** Checkpoint `tech2000-citrinet384/c90` (avg4 90%, NVIDIA `citrinet384_ls` 10%; weights
+fd297b3a...). Exported on the Mac Studio with the unchanged export kit (`./run.sh --checkpoint
+model/citrinet384-2000h-c90`): 102 calibration clips, export 6294574f..., input exponent -4, output -1,
+395 nodes, embedded test values byte-exact on the host. Log and folder: `~/Downloads/20261117-184140*`.
+Host greedy WER, no LM, 600 dev clips (plain 2,000 h export in brackets): float 13.87% (14.44%), int8
+15.20% (15.28%). Int8 costs c90 1.34 points against 0.84 for the plain model, so on the chip the two are
+close; c90 is better on LibriSpeech and AMI, worse on tech speech (8.46% against 7.82%).
+
+**Packaging without the export environment.** The Mac's export venv is gone. `repack_espdl.py` only needs
+esp-ppq's generated FlatBuffers classes, so the scratch runner stubs the `esp_ppq` package and puts the
+wheel's `parser/espdl` on the path (flatbuffers 25.12.19, numpy, pyyaml in a `--target` folder). Checked
+first: it reproduces the plain export's existing repacked file byte for byte (a9dbce5b...). The packaged
+c90 graph is a135f830..., `kResidentKeepBytes` 21,384,192; compile requirements regenerated (same six
+kernels).
+
+**Verified.**
+- All three apps build cleanly (`screen_captions`, `simple_captions`, `p4_eye_captions`).
+- Bench board (`usbmodem1401`) runs the auto-gain + vocabulary build on the **plain** 2,000 h model: model,
+  LM and speaker model load, room measurement, `Listening`, seven inference runs on room noise with no
+  false captions.
+
+**Not verified.**
+- **No caption from Citrinet in either new app yet**: nobody has spoken to the board, and the Mac's speaker
+  is muted, so nothing was played at it.
+- The c90 model on the P4 (load, self-test, speed). Expect the self-test question as with the plain export.
+- Automatic gain on real speech; the vocabulary file end to end (the bench card has none).
+- Battery board (`usbmodem1101`) still runs the v2 QuartzNet build; its card has only the v2 model.
+
+**Next, in order.** Upload `citrinet384-2000h-c90.p4.stt` to the card first (the user's web upload path
+in HardwareOne, or a card reader), then flash the c90 build: the current bench build is pinned to the
+plain model's identity and would refuse c90, and the c90 build refuses the plain file. Then speak to it.
+Rollback images for both boards: `private/rollback-2026-11-17-screen-captions-a773/` and
+`private/rollback-2026-11-17-simple-captions/` (full 16 MB flash and partition table).
+
+**Still open, not started:** editing the vocabulary on the device with the wheel.
+
 ## Citrinet-384 on the P4 and on the board recordings — 16 November 2026 (Claude, on the Mac mini)
 
 **Speed and memory on the P4X-EYE** (standalone probe `private/citrinet-p4-probe`, HardwareOne's patched
