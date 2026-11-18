@@ -2,7 +2,8 @@
 //
 //   PDM microphone -> phrase segmenter -> Citrinet-384 (int8) + word language model -> screen
 //
-// Press the wheel to pause and resume. Turn it for the settings (settings.h). With the
+// Press the wheel to pause and resume. Turn it for the settings (settings.h). The microphone
+// gain sets itself, and your own words can be added in a file on the card (vocabulary.h). With the
 // optional speaker model on the card, each caption is numbered by who said it (speaker.h).
 //
 // Put two files in a folder named "STT Models" on a FAT microSD card:
@@ -11,6 +12,7 @@
 //   speaker.spk                       the speaker model (optional; no speaker numbers without it)
 // then build, flash and talk. Captions are also printed on the serial console.
 #include <algorithm>
+#include <atomic>
 #include <cstdio>
 #include <cstring>
 #include <sys/stat.h>
@@ -31,12 +33,14 @@
 #include "stt/quartznet_runtime.h"  // the runtime API both models share
 #include "stt/stt_lm.h"
 #include "stt/stt_lm_wordpiece.h"
+#include "stt/stt_auto_gain.h"
 #include "stt/stt_model_selection.h"
 #include "stt/stt_stream.h"
 
 #include "settings.h"
 #include "speaker.h"
 #include "ui.h"
+#include "vocabulary.h"
 
 namespace {
 // Files on the card. The engine checks the model's size and SHA-256 against
@@ -121,6 +125,43 @@ const char* mountCard() {
 
 // ---------------------------------------------------------------- microphone
 i2s_chan_handle_t gMic = nullptr;
+std::atomic<uint32_t> gCaptions{0};  // final captions so far: tells the gain logic that speech was heard
+
+// The microphone's own gain (x1..x8) and a 36 Hz low cut, both done in the chip's PDM
+// converter. Raising the gain here gives quiet speech more of the 16-bit range; multiplying
+// samples afterwards would only scale the rounding noise with it.
+i2s_pdm_rx_slot_config_t micSlot(uint8_t gain) {
+  i2s_pdm_rx_slot_config_t slot =
+#ifdef I2S_PDM_RX_SLOT_PCM_FMT_DEFAULT_CONFIG
+      I2S_PDM_RX_SLOT_PCM_FMT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO);
+#else
+      I2S_PDM_RX_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO);
+#endif
+  slot.amplify_num = gain;
+  slot.hp_en = true;
+  slot.hp_cut_off_freq_hz = 35.5f;
+  return slot;
+}
+
+void settleMic() {  // discard three blocks after the microphone starts or changes
+  static int16_t warm[kReadSamples];
+  for (int i = 0; i < 3; ++i) {
+    size_t bytes = 0;
+    i2s_channel_read(gMic, warm, sizeof(warm), &bytes, 500);
+  }
+}
+
+// Changing the gain restarts the converter and drops about a fifth of a second of audio.
+void setMicGain(uint8_t gain) {
+  const i2s_pdm_rx_slot_config_t slot = micSlot(gain);
+  if (i2s_channel_disable(gMic) != ESP_OK) return;
+  const bool changed = i2s_channel_reconfig_pdm_rx_slot(gMic, &slot) == ESP_OK;
+  i2s_channel_enable(gMic);
+  if (!changed) return;
+  settleMic();
+  settings::gainNow = gain;
+  printf("Microphone gain x%u\n", unsigned(gain));
+}
 
 bool startMic() {
   gpio_set_level(kMicPower, 1);  // latch first, then drive, so the shared rail never dips
@@ -131,15 +172,11 @@ bool startMic() {
   chan.dma_frame_num = kReadSamples;
   if (i2s_new_channel(&chan, nullptr, &gMic) != ESP_OK) return false;
 
-  i2s_pdm_rx_slot_config_t slot =
-#ifdef I2S_PDM_RX_SLOT_PCM_FMT_DEFAULT_CONFIG
-      I2S_PDM_RX_SLOT_PCM_FMT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO);
-#else
-      I2S_PDM_RX_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO);
-#endif
+  const uint8_t fixed = settings::kGainChoices[settings::gain];
+  settings::gainNow = fixed ? fixed : hw1::stt::kAutoGainStart;
   i2s_pdm_rx_config_t cfg = {
       .clk_cfg = I2S_PDM_RX_CLK_DEFAULT_CONFIG(kSampleRate),
-      .slot_cfg = slot,
+      .slot_cfg = micSlot(settings::gainNow),
       .gpio_cfg = {.clk = kMicClk, .din = kMicData, .invert_flags = {.clk_inv = false}},
   };
   // 16 kHz x 64 = 1.024 MHz falls between the microphone's low-power and standard clock
@@ -147,19 +184,30 @@ bool startMic() {
   cfg.clk_cfg.dn_sample_mode = I2S_PDM_DSR_16S;
   if (i2s_channel_init_pdm_rx_mode(gMic, &cfg) != ESP_OK) return false;
   if (i2s_channel_enable(gMic) != ESP_OK) return false;
-
-  static int16_t warm[kReadSamples];  // let the microphone settle: discard three blocks
-  for (int i = 0; i < 3; ++i) {
-    size_t bytes = 0;
-    i2s_channel_read(gMic, warm, sizeof(warm), &bytes, 500);
-  }
+  settleMic();
   return true;
 }
 
 // Microphone -> pipeline. The pipeline cuts the audio into phrases.
+//
+// Automatic gain: every minute of listening that produced a caption says what gain it would
+// have wanted (half if the audio clipped, otherwise whatever puts loud speech near -18 dBFS).
+// The gain moves only when three such minutes in a row agree, and then by at most a factor
+// of two, so one shout or one quiet minute never changes it.
 void captureTask(void*) {
   static int16_t block[kReadSamples];
+  constexpr uint64_t kGainWindowSamples = 60 * kSampleRate;
+  hw1::stt::AutoGainMeter meter;
+  hw1::stt::AutoGainHistory history;
+  uint32_t captionsAtWindowStart = gCaptions;
   for (;;) {
+    const uint8_t fixed = settings::kGainChoices[settings::gain];
+    const uint8_t wanted = fixed ? fixed : history.gain();
+    if (wanted != settings::gainNow) {
+      setMicGain(wanted);
+      meter.reset();
+      captionsAtWindowStart = gCaptions;
+    }
     size_t bytes = 0;
     const esp_err_t err = i2s_channel_read(gMic, block, sizeof(block), &bytes, 200);
     if (err != ESP_OK && err != ESP_ERR_TIMEOUT) {
@@ -168,10 +216,14 @@ void captureTask(void*) {
     }
     if (!bytes || !settings::listening) continue;  // paused: the audio is read and dropped
     const size_t count = bytes / sizeof(int16_t);
-    const int32_t gain = settings::kGainPercent[settings::gain];
-    if (gain != 100)
-      for (size_t i = 0; i < count; ++i)
-        block[i] = int16_t(std::clamp<int32_t>(block[i] * gain / 100, INT16_MIN, INT16_MAX));
+    if (!fixed) {
+      meter.push(block, count);
+      if (meter.stats().samples >= kGainWindowSamples) {
+        history.record(settings::gainNow, meter.stats(), gCaptions != captionsAtWindowStart);
+        meter.reset();
+        captionsAtWindowStart = gCaptions;
+      }
+    }
     if (!gPipeline.push(block, count, nowMs())) {
       printf("Capture stopped: the pipeline rejected audio\n");
       vTaskDelete(nullptr);
@@ -242,7 +294,7 @@ hw1::stt::DecodeResult decodeWithLanguageModel(void* context, const int8_t* logi
   params.beta = 0.75 * strength;
   params.hotwordBonus *= strength;
   const lm::DecodeStatus status = lm::wordpiece::decode(
-      logits, frames, size_t(hw1::stt::identity::kOutputClasses), exponent, m.view, *pieces, params, nullptr, text,
+      logits, frames, size_t(hw1::stt::identity::kOutputClasses), exponent, m.view, *pieces, params, vocabulary::words(), text,
       capacity, {control.context, control.cancelled}, nullptr, scratch.data, scratch.bytes);
   if (status == lm::DecodeStatus::Ok) return hw1::stt::DecodeResult::Decoded;
   if (status == lm::DecodeStatus::Cancelled) return hw1::stt::DecodeResult::Cancelled;
@@ -294,6 +346,7 @@ extern "C" void app_main() {
   if (!ui::begin()) printf("Screen did not start: captions on the serial console only\n");
   ui::status("Loading model");
   if (const char* failure = mountCard()) halt(failure);
+  if (const size_t words = vocabulary::load()) printf("Vocabulary: %u of your words\n", unsigned(words));
   struct stat st = {};
   if (stat(kModelPath, &st) != 0)
     halt("model file missing: the card needs \"STT Models/citrinet384-2000h.p4.stt\"");
@@ -390,7 +443,9 @@ extern "C" void app_main() {
         ui::draft(text);
       }
     } else if (valid && text[0]) {
-      const uint32_t id = ui::caption(text);
+      static char shown[2 * hw1::stt::kStreamText];
+      const uint32_t id = ui::caption(vocabulary::format(text, shown, sizeof(shown)) ? shown : text);
+      ++gCaptions;
       if (speakerLabels && settings::speakers) speaker::submit(id, work.pcm, work.samples);
       printf("[%7.1f s] %s\n", double(work.start_sample) / kSampleRate, text);
       printf("            %.1f s of audio in %u ms: features %u, model %u, decode %u ms%s\n",

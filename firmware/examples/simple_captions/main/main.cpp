@@ -129,6 +129,11 @@ bool startMic() {
 #else
       I2S_PDM_RX_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO);
 #endif
+  // The microphone's own gain and a 36 Hz low cut, done in the chip's PDM converter. x8 was
+  // the best measured gain for speech a foot or more away, and no worse up close.
+  slot.amplify_num = 8;
+  slot.hp_en = true;
+  slot.hp_cut_off_freq_hz = 35.5f;
   i2s_pdm_rx_config_t cfg = {
       .clk_cfg = I2S_PDM_RX_CLK_DEFAULT_CONFIG(kSampleRate),
       .slot_cfg = slot,

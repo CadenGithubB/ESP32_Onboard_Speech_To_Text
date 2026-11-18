@@ -6,6 +6,7 @@
 namespace settings {
 std::atomic<bool> listening{true};
 std::atomic<uint8_t> gain{0};
+std::atomic<uint8_t> gainNow{8};
 std::atomic<uint8_t> lmStrength{4};
 std::atomic<bool> speakers{true};
 std::atomic<bool> drafts{true};
@@ -14,7 +15,7 @@ std::atomic<uint8_t> endPause{1};
 
 namespace {
 constexpr const char* kNamespace = "captions";
-constexpr const char* kKey = "settings1";
+constexpr const char* kKey = "settings2";
 struct Stored {
   uint8_t gain, lmStrength, speakers, drafts, noisyRoom, endPause;
 };

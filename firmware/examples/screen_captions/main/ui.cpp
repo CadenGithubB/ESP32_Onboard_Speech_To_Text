@@ -63,7 +63,10 @@ bool gMenuOpen = false, gNeedsRestart = false;
 void rowText(int row, char* text, size_t capacity) {
   using namespace settings;
   switch (row) {
-    case kGain: snprintf(text, capacity, "Mic gain: %u.%ux", kGainPercent[gain] / 100, kGainPercent[gain] % 100 / 10); break;
+    case kGain:
+      if (kGainChoices[gain]) snprintf(text, capacity, "Mic gain: x%u", unsigned(kGainChoices[gain]));
+      else snprintf(text, capacity, "Mic gain: auto (x%u)", unsigned(gainNow));
+      break;
     case kLm: snprintf(text, capacity, "Language model: %u%%", unsigned(lmStrength) * 25); break;
     case kSpeakers: snprintf(text, capacity, "Speaker labels: %s", speakers ? "on" : "off"); break;
     case kDrafts: snprintf(text, capacity, "Live drafts: %s *", drafts ? "on" : "off"); break;
