@@ -58,6 +58,16 @@ Rollback images for both boards: `private/rollback-2026-11-17-screen-captions-a7
 
 **Still open, not started:** editing the vocabulary on the device with the wheel.
 
+**Waiting on a board run (18 Nov, the user's call): model 2 vs model 3 in the report's "Where the time goes"
+charts.** Citrinet has per-phrase `TL seg` timings only from the 1 ft ab1/nb1 bench (Audiodrive
+`stt/hw1-work/citrinet/bench-stage6`, `citrinet/memfit/backup-20261116/sessions`,
+`leveler-bench-2026-11-17/sessions`). The 15x5 gen2's 16 Nov 1 ft session logs (`onset-3.1/board/sessions`
+in the HardwareOne checkout) are not on this Mac, the Audiodrive or the consolidation tars; only its raw audio
+and the summary numbers above remain. The 1.1-1.8 bars come from the speaker playlist, which Citrinet has not
+run. Plan: run both models back to back on one board with the same protocol (the speaker playlist, so the
+bars join the existing charts), then add them through `tools/report/breakdown.py` and `make_visual.py`.
+Citrinet's stage split needs its own layer grouping (`graph_nodes.json` is the 15x5 graph).
+
 ## Citrinet-384 on the P4 and on the board recordings — 16 November 2026 (Claude, on the Mac mini)
 
 **Speed and memory on the P4X-EYE** (standalone probe `private/citrinet-p4-probe`, HardwareOne's patched
