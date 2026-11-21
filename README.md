@@ -28,7 +28,7 @@ git clone -b v5.5.5 --recursive https://github.com/espressif/esp-idf.git ~/esp/e
 ~/esp/esp-idf/install.sh esp32p4
 ```
 
-**2. Get this repository.** The trained models come with it, in [`models/`](models):
+**2. Get this repository.** The trained models come with it, in [`Pretrained Models/`](<Pretrained Models>):
 
 ```bash
 git clone https://github.com/CadenGithubB/ESP32_Onboard_Speech_To_Text.git
@@ -39,7 +39,7 @@ cd ESP32_Onboard_Speech_To_Text
 name. On a Mac, with the card mounted as `NO NAME`:
 
 ```bash
-cp -R "models/STT Models" "/Volumes/NO NAME/"
+cp -R "Pretrained Models/STT Models" "/Volumes/NO NAME/"
 ```
 
 Eject the card and put it in the board.
@@ -83,7 +83,7 @@ keeps working without the computer.
 Settings are saved on the board. The last three restart it to take effect.
 
 **Your own words.** Names and jargon the recognizer should prefer go in a file on the card,
-`STT Models/user_vocab.tsv`. [`models/README.md`](models/README.md) shows the format.
+`STT Models/user_vocab.tsv`. [`Pretrained Models/README.md`](<Pretrained Models/README.md>) shows the format.
 
 ## The simplest version
 
@@ -99,8 +99,8 @@ The board shows `Stopped` and the reason, and prints it every five seconds.
 |---|---|
 | `no microSD card detected` | Reseat the card and press reset. |
 | `microSD card did not mount` | Reformat the card as FAT32 (not exFAT). |
-| `model file missing` | The card needs the `STT Models` folder at its top level. Copy it from `models/` again. |
-| `Model load failed` | The model file is damaged or is from another version of this repository. Copy it from `models/` again. |
+| `model file missing` | The card needs the `STT Models` folder at its top level. Copy it from `Pretrained Models/` again. |
+| `Model load failed` | The model file is damaged or is from another version of this repository. Copy it from `Pretrained Models/` again. |
 | `No /sd/STT Models/meeting.lm` | Captions still work, less accurately. Copy `meeting.lm` to the card. |
 | `No /sd/STT Models/speaker.spk` | Captions still work, without speaker numbers. Copy `speaker.spk` to the card. |
 | `idf.py: command not found` | Run `. ~/esp/esp-idf/export.sh` in this terminal first. |
@@ -113,7 +113,7 @@ The board shows `Stopped` and the reason, and prints it every five seconds.
 | [`firmware/examples/screen_captions`](firmware/examples/screen_captions) | The app above: captions on the screen, settings on the wheel, speaker labels. |
 | [`firmware/examples/simple_captions`](firmware/examples/simple_captions) | The same engine in one source file, captions in the terminal. |
 | [`firmware/components/hw1_stt`](firmware/components/hw1_stt) | The engine as an ESP-IDF component: audio features, the int8 Citrinet-384 runtime, the phrase segmenter, live drafts, the language model search, the speaker model, automatic microphone gain. |
-| [`models/`](models) | The trained models, ready to copy to the card, with their accuracy and sources. |
+| [`Pretrained Models/`](<Pretrained Models>) | The trained models, ready to copy to the card, with their accuracy and sources. |
 | [`firmware/examples/p4_eye_captions`](firmware/examples/p4_eye_captions) | An older, fuller app on the earlier QuartzNet 15x5 model: saved recordings and a browser viewer. Its model is on the [releases page](https://github.com/CadenGithubB/ESP32_Onboard_Speech_To_Text/releases/tag/model-gen2-25397). |
 | [`tools/`](tools) | Training, model export, packaging, and device test tooling. |
 | [`docs/`](docs) | Measurements and investigation notes. |

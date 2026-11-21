@@ -15,7 +15,7 @@ the user chose to push after the board test.
   reset once. Reads `STT Models/user_vocab.tsv` (all or nothing) into the decoder's custom words and
   `hw1_transcript::format`; raw captions still go to the serial log unchanged.
 - `simple_captions`: fixed x8 and the same high-pass.
-- `models/STT Models/`: `citrinet384-2000h-c90.p4.stt` (sha256 0b0fd358..., 22,700,592 bytes),
+- `models/STT Models/` (now `Pretrained Models/STT Models/`): `citrinet384-2000h-c90.p4.stt` (sha256 0b0fd358..., 22,700,592 bytes),
   `meeting.lm`, `speaker.spk`, an example vocabulary, `models/SHA256SUMS`, and `models/README.md` with
   accuracy, sources and licences. Both apps are pinned to the c90 file name.
 - `quartznet_frontend.h` now matches HardwareOne's byte for byte (a comment moved to `stt_stream.h`), so the
