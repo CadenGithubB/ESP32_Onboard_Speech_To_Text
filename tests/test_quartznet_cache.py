@@ -25,15 +25,14 @@ def main():
     parser.add_argument('--sanitize', action='store_true', help='AddressSanitizer and UBSan')
     parser.add_argument('--resident', type=int, choices=(0, 1),
                         help='only this HW1_STT_RESIDENT_MODEL value (default: both)')
-    parser.add_argument('--model-local-prepare', type=int, choices=(0, 1),
-                        help='only this preparation API setting (default: both)')
     args = parser.parse_args()
     # Per-call models (=0) and the resident model with its PSRAM metadata hook
     # (=1, the firmware default) each have their own harness.
     for resident in ((args.resident,) if args.resident is not None else (0, 1)):
-        for local_prepare in ((args.model_local_prepare,) if args.model_local_prepare is not None else (0, 1)):
-            run(resident, 'quartznet_cache_harness_resident.cpp' if resident else 'quartznet_cache_harness.cpp',
-                args.sanitize, local_prepare)
+        # The experimental local-prepare option (CONFIG_HW1_STT_MODEL_LOCAL_PREPARE)
+        # left the firmware with the Citrinet engine port; only its off setting exists.
+        run(resident, 'quartznet_cache_harness_resident.cpp' if resident else 'quartznet_cache_harness.cpp',
+            args.sanitize, 0)
 
 
 def run(resident, harness_name, sanitize, local_prepare):

@@ -71,7 +71,7 @@ struct State {
     bool hookInstalled=false; int installs=0;
     bool psramRefuses=false;            // metadata and resident blocks land in internal RAM
     size_t metaPsram=0, metaInternal=0, psPsram=0, psInternal=0;
-    uint32_t allocs[11]={}, bytes[11]={}, internal[11]={}, internalBytes[11]={}, failed[11]={}, frees=0;
+    uint32_t allocs[13]={}, bytes[13]={}, internal[13]={}, internalBytes[13]={}, failed[13]={}, frees=0;  // kDlMetadataKinds
     int modelNews=0, failModelAt=0;     // fail the n-th Model allocation (1-based; 0: never)
     int psAllocs=0, failPsAt=0;         // fail the n-th sttPsramAlloc (1-based; 0: never)
     uint32_t foreignObjects=0;
@@ -219,7 +219,15 @@ struct DlMetadataStats {
   uint32_t failed = 0;         // requests neither heap could serve
   uint32_t frees = 0;          // non-null blocks returned through the hook
 };
-inline constexpr size_t kDlMetadataKinds = 11;  // dl::tool::kMetadataKinds (static_assert in the .cpp)
+// The runtime brackets ESP-DL builds with this guard (stt_dl_metadata.h);
+// the host double counts nothing.
+struct DlCompactExponents {
+  DlCompactExponents() {}
+  ~DlCompactExponents() {}
+  DlCompactExponents(const DlCompactExponents&) = delete;
+  DlCompactExponents& operator=(const DlCompactExponents&) = delete;
+};
+inline constexpr size_t kDlMetadataKinds = 13;  // dl::tool::kMetadataKinds (static_assert in the .cpp)
 
 // Idempotent; call before building any model. Returns true once installed.
 bool installDlMetadataAllocator();
@@ -762,7 +770,7 @@ struct FakeDecoder {
     int decodes=0, releases=0;
     size_t frames=0, capacity=0; int exponent=0; const int8_t* logits=nullptr;
     void* lm=nullptr; size_t lmBytes=0;   // PSRAM a real LM would keep resident
-    static DecodeResult decode(void* c,const int8_t* logits,size_t frames,int exponent,char* text,size_t cap,const STTLocalControl& control) {
+    static DecodeResult decode(void* c,const int8_t* logits,size_t frames,int exponent,char* text,size_t cap,const STTLocalControl& control,const DecodeScratch&) {
         auto& d=*static_cast<FakeDecoder*>(c);++d.decodes;
         assert(fake::state.phase==STTLocalPhase::Decoding && !control.cancelled(control.context));
         d.frames=frames;d.exponent=exponent;d.capacity=cap;d.logits=logits;
@@ -1005,7 +1013,7 @@ void refusals() {
     fake::clean();
     {
         struct Squeeze {
-            static DecodeResult decode(void*,const int8_t*,size_t,int,char* text,size_t cap,const STTLocalControl&) {
+            static DecodeResult decode(void*,const int8_t*,size_t,int,char* text,size_t cap,const STTLocalControl&,const DecodeScratch&) {
                 fake::state.internalFree=150*1024-1;std::snprintf(text,cap,"%s","lm");return DecodeResult::Decoded;
             }
         };

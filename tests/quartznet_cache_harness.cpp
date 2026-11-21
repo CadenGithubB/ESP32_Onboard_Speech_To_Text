@@ -205,6 +205,14 @@ class Model {
 };
 }
 namespace hw1::stt {
+// The runtime brackets ESP-DL builds with this guard (stt_dl_metadata.h);
+// the host double counts nothing.
+struct DlCompactExponents {
+  DlCompactExponents() {}
+  ~DlCompactExponents() {}
+  DlCompactExponents(const DlCompactExponents&) = delete;
+  DlCompactExponents& operator=(const DlCompactExponents&) = delete;
+};
 size_t feature_frames(size_t samples) {return (samples+159)/160;}
 Status compute_features(const int16_t*,size_t samples,float* output,size_t count,FrontendWorkspace*,uint32_t,bool,FrontendTiming*) {
     assert(count==feature_frames(samples)*kMelBins);
@@ -475,7 +483,7 @@ struct FakeDecoder {
     int decodes=0, releases=0;
     size_t frames=0, capacity=0; int exponent=0; const int8_t* logits=nullptr;
     void* lm=nullptr; size_t lmBytes=0;   // PSRAM a real LM would keep resident
-    static DecodeResult decode(void* c,const int8_t* logits,size_t frames,int exponent,char* text,size_t cap,const STTLocalControl& control) {
+    static DecodeResult decode(void* c,const int8_t* logits,size_t frames,int exponent,char* text,size_t cap,const STTLocalControl& control,const DecodeScratch&) {
         auto& d=*static_cast<FakeDecoder*>(c);++d.decodes;
         assert(fake::state.phase==STTLocalPhase::Decoding && !control.cancelled(control.context));
         d.frames=frames;d.exponent=exponent;d.capacity=cap;d.logits=logits;
