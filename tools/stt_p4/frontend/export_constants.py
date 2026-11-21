@@ -9,7 +9,7 @@ import numpy as np
 import torch
 
 HERE = Path(__file__).resolve().parent
-PRODUCTION = HERE.parents[2] / 'components/hardwareone/stt'
+PRODUCTION = HERE.parents[2] / 'firmware/components/hw1_stt/stt'
 WEIGHTS_SHA = '51a92f946c8cccacb723f4291be1f3285d589e5ac84fa0f6714221dbbbf333cb'
 CONFIG_SHA = '1e829dd42c31d4c55d2bcf844c8abbf664ba6f1b767a9e6c8e8d26672ae5ab58'
 ARCHIVE_SHA = 'd12bae27c1aa66cf69111ce3f8e56ac7aa25dac27734ea4c3315a259966a02f5'

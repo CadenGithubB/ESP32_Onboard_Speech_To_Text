@@ -1,6 +1,6 @@
 # Portable QuartzNet frontend and CTC
 
-The single C++17 implementation lives in `components/hardwareone/stt/`.
+The single C++17 implementation lives in `firmware/components/hw1_stt/stt/`.
 The experiment probe and host tests compile those production files directly;
 this folder contains references, generators, and tests only. The implementation converts **raw mono 16 kHz int16 PCM** into contiguous
 float32 `[T,64]` features. `T = ceil(samples/160)`, without padded frames; the
@@ -65,13 +65,22 @@ in these commands. The exact checkpoint and public fixture provenance are in
 `experiments/speech_portable/float_quartznet.py` and the constants manifest.
 
 ```sh
-python3 experiments/stt_p4/frontend/contract.py --check
-python3 experiments/stt_p4/frontend/test_model_container.py
-experiments/speech_portable/private/stt-quartznet/venv/bin/python experiments/stt_p4/frontend/export_constants.py --check
-experiments/speech_portable/private/stt-quartznet/venv/bin/python experiments/stt_p4/frontend/test_frontend.py --sanitize
-experiments/speech_portable/private/stt-quartznet/venv/bin/python experiments/stt_p4/frontend/test_runtime_quantization.py
-experiments/speech_portable/private/stt-quartznet/venv/bin/python experiments/stt_p4/frontend/test_transcripts.py
+python3 tools/stt_p4/frontend/contract.py --check
+$PY tools/stt_p4/frontend/test_model_container.py --model <package>.p4.stt
+$PY tools/stt_p4/frontend/test_frontend.py --sanitize --fixtures <checkpoint>/fixtures
+$PY tools/stt_p4/frontend/test_runtime_quantization.py
+# These two need the pinned 5x5 checkpoint in tools/speech_portable/private/stt-quartznet:
+$PY tools/stt_p4/frontend/export_constants.py --check
+$PY tools/stt_p4/frontend/test_transcripts.py
 ```
+
+`$PY` is an environment with torch, numpy and soundfile (for example the export venv).
+`test_frontend.py` builds the reference window and mel filters from the compiled
+`quartznet_constants.h`, verified against the pinned checkpoint tensor hashes in
+`constants-manifest.json`, so it needs only the two public speech clips.
+`contract.py --check` reports the contract as stale: the C++ hashes it records went
+stale while it still pointed at HardwareOne's tree. Do not regenerate it; that would
+change the frontend identity `ca91eb96…` the QuartzNet packages pin.
 
 Results and generated feature/PCM fixtures stay in ignored
 `experiments/stt_p4/private/frontend/`. The quantizer test extracts and compiles

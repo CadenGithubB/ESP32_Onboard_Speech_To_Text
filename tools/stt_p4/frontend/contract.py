@@ -5,7 +5,7 @@ import hashlib
 import json
 from pathlib import Path
 HERE=Path(__file__).resolve().parent
-PRODUCTION=HERE.parents[2]/'components/hardwareone/stt'
+PRODUCTION=HERE.parents[2]/'firmware/components/hw1_stt/stt'
 
 def contract_bytes():
     files=['quartznet_frontend.h','quartznet_frontend.cpp','quartznet_constants.h','reference_frontend.py','constants-manifest.json']

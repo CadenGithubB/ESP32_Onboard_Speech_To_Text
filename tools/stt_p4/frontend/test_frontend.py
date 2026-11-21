@@ -6,23 +6,43 @@ import json
 from pathlib import Path
 import subprocess
 import tempfile
+import re
 import numpy as np
 import soundfile as sf
 import torch
-from export_constants import load_state
 from reference_frontend import features_pcm16
 
 HERE=Path(__file__).resolve().parent
-PRODUCTION=HERE.parents[2]/'components/hardwareone/stt'
+PRODUCTION=HERE.parents[2]/'firmware/components/hw1_stt/stt'
+
+def pinned_state():
+    """Window and mel filters exactly as compiled (quartznet_constants.h), verified against the hashes
+    of the pinned NVIDIA checkpoint tensors in constants-manifest.json; no checkpoint file needed."""
+    manifest=json.loads((HERE/'constants-manifest.json').read_text())
+    header=(PRODUCTION/'quartznet_constants.h').read_bytes()
+    if hashlib.sha256(header).hexdigest()!=manifest['header_sha256']: raise ValueError('quartznet_constants.h differs from the manifest')
+    text=header.decode()
+    def array(name,parse):
+        body=re.search(r'\b'+name+r'\[\d+\] = \{([^}]*)\}',text).group(1)
+        return [parse(x.strip()) for x in body.split(',') if x.strip()]
+    hexfloat=lambda x: float.fromhex(x.rstrip('f'))
+    window=np.array(array('window',hexfloat),np.float32); weights=np.array(array('mel_weight',hexfloat),np.float32)
+    start,count,offset=(array(n,int) for n in ('mel_start','mel_count','mel_offset'))
+    mel=np.zeros((64,257),np.float32)
+    for m in range(64): mel[m,start[m]:start[m]+count[m]]=weights[offset[m]:offset[m+1]]
+    for name,values in (('window_sha256_f32le',window),('mel_sha256_f32le',mel)):
+        if hashlib.sha256(values.astype('<f4').tobytes()).hexdigest()!=manifest[name]: raise ValueError('Constants differ from the pinned checkpoint: '+name)
+    return {'preprocessor.featurizer.window':torch.from_numpy(window),'preprocessor.featurizer.fb':torch.from_numpy(mel)[None]}
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--checkpoint',type=Path,default=HERE.parents[1]/'speech_portable/private/stt-quartznet')
+    parser.add_argument('--fixtures',type=Path,default=HERE.parents[1]/'speech_portable/private/stt-quartznet/fixtures',
+                        help='Folder with the public speech clips 0.wav and 1.wav (any checkpoint folder\'s fixtures/)')
     parser.add_argument('--sanitize',action='store_true')
     parser.add_argument('--output',type=Path,default=HERE.parent/'private/frontend')
     args=parser.parse_args()
-    torch.set_num_threads(4)
-    state=load_state(args.checkpoint)
+    torch.set_num_threads(1)
+    state=pinned_state()
     args.output.mkdir(parents=True,exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='hw1-quartz-frontend-') as directory:
         binary=Path(directory)/'frontend'
@@ -38,7 +58,7 @@ def main():
                ('impulse1600',np.array([32767]+[0]*1599,dtype=np.int16)),
                ('sine480000',np.round(np.sin(np.arange(480000)*0.08)*16000).astype(np.int16))]
         for name in ['0.wav','1.wav']:
-            pcm,rate=sf.read(args.checkpoint/'fixtures'/name,dtype='int16')
+            pcm,rate=sf.read(args.fixtures/name,dtype='int16')
             if rate!=16000 or pcm.ndim!=1: raise ValueError('Unexpected fixture format')
             cases.append((name[:-4],pcm))
         results=[]
