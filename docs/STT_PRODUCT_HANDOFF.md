@@ -1419,7 +1419,7 @@ Private evidence is under ignored `private/product-retry-20261021/`: original fl
 8. Titles/speaker aliases currently persist through browser export only. Decide how to save edits in HardwareOne metadata under its existing permissions. Full-card search/indexing remains optional future work.
 9. Rebuild current required HardwareOne profiles and qualify on the glasses. Standalone P4 success does not establish firmware integration correctness.
 
-`tools/sync_to_hardwareone.sh` copies selected tooling folders into experiments only. It does not install this firmware component or viewer. Review and integrate source changes explicitly against the current HardwareOne checkout.
+HardwareOne keeps no copy of this repo's tooling (its `experiments/` folder was removed on 2026-11-26, and `tools/sync_to_hardwareone.sh` with it). Nothing installs this firmware component or viewer automatically: review and integrate source changes explicitly against the current HardwareOne checkout.
 
 ## October 31 repository handoff
 
