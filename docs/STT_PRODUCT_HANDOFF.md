@@ -497,8 +497,9 @@ Models with the onset 97/150:
 - The device's own captions were not scored. The host replay decodes offline, not as the device
   streams.
 
-Files (private): HardwareOne checkout `experiments/stt_p4/private/onset-3.1/` (`board/sessions/*`
-summaries and samples, `h1/night/*` scores, `board/flash/` slot backup), and raw audio on the Audiodrive
+Files (private): the HardwareOne checkout's former `experiments/stt_p4/private/onset-3.1/`, now in the
+private archive (`board/sessions/*`
+summaries and samples, `h1/night/*` scores, `board/flash/` slot backup), and raw audio on the data drive
 under `stt/hw1-work/onset-3.1/raw/`.
 
 ## H1 host replay of HardwareOne's gain chain and the glasses — 16 November 2026 (Claude, on the Mac mini)
@@ -557,8 +558,8 @@ No false words on noise or silence for any onboard arm.
 - `decision_gain_pct` was not tuned for x8 audio (150 was picked on x1 `ee4c9cea`); a sweep on these
   two recordings would be in-sample.
 
-Outputs (caption text, private): the HardwareOne checkout's ignored
-`experiments/stt_p4/private/onset-3.1/h1/` and the Audiodrive's `stt/hw1-work/onset-3.1/h1/`.
+Outputs (caption text, private): the HardwareOne checkout's former
+`experiments/stt_p4/private/onset-3.1/h1/` (now in the private archive) and the data drive's `stt/hw1-work/onset-3.1/h1/`.
 
 **Since the 15 Nov section below:**
 - `claude/cleanup-1` moved to 46c293dd. That adds six 1.0 commits; none touches STT or settings files.

@@ -7,7 +7,7 @@ Each export directory must hold quartznet.onnx, quartznet.json and manifest.json
 from export_quartznet.py. Int8 inference is evaluate_heldout.FrozenQuantized,
 which is first required to reproduce every exported fixture output byte-exactly
 (the same bytes embedded in the ESPDL test values). Utterances come from the
-read-only experiments/stt_train stores; *-test stores are refused and any clip a
+read-only tools/stt_train stores; *-test stores are refused and any clip a
 listed manifest used for calibration is excluded. Features use the portable
 deployment frontend. Per-utterance int8 logits are saved for later LM decoding.
 """

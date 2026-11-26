@@ -22,7 +22,7 @@
 #           the image before is kept in deploy15/lmrm-<time>/ for rollback
 #
 # Usage:
-#   experiments/stt_p4/deploy_15x5.sh <checkpoint-dir> <name> [steps...]
+#   tools/stt_p4/deploy_15x5.sh <checkpoint-dir> <name> [steps...]
 #     steps default to: stage export pack build card
 #     flash is never implied; add it explicitly (PORT=/dev/cu.usbmodemXXXX).
 #   e.g. deploy_15x5.sh "$STT_ROOT/work/run15x5/best" ft15-8877 all flash

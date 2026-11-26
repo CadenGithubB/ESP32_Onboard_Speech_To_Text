@@ -2,7 +2,7 @@
 """Greedy (device semantics) and LM WER on saved full-int8 model logits.
 
 lm_int8_eval.py --npz-dir DIR --model NAME --lm LM [--lm-name label] ...
-Uses the LM header params unchanged. Read-only use of experiments/stt_train/lm/hw1lm.py.
+Uses the LM header params unchanged. Read-only use of tools/stt_train/lm/hw1lm.py.
 """
 import argparse, json, sys
 from pathlib import Path

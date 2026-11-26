@@ -2,13 +2,13 @@
 import os
 import contextlib,datetime,json,pathlib,re,subprocess,sys,time
 ROOT=pathlib.Path(__file__).resolve().parents[3]
-sys.path[:0]=[str(ROOT/'experiments'/x) for x in ('p4_ble_roles','p4_connectivity','p4_mesh')]
+sys.path[:0]=[str(pathlib.Path(__import__('os').environ['HW1_BENCH_LIBS'])/x) for x in ('p4_ble_roles','p4_connectivity','p4_mesh')]
 from board_control import RolesConsole
 from console import extract_json_objects
 from test_mesh import command_token
 from test_http_s3 import private_encodings
 RUN=pathlib.Path(__file__).resolve().parent
-creds=json.loads(pathlib.Path(__import__('os').environ.get('HW1_CREDENTIALS', 'experiments/p4_ble_roles/private/credentials.json')).read_text())
+creds=json.loads(pathlib.Path(__import__('os').environ['HW1_CREDENTIALS']).read_text())
 tag=datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%d-%H%M%S')
 record=RUN/('continuous-'+tag+'.json');records=[]
 def emit(value):

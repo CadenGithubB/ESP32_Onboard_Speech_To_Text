@@ -3,7 +3,7 @@ import os
 import sys, json
 from pathlib import Path
 sys.dont_write_bytecode=True
-sys.path.insert(0,'experiments/stt_p4')
+sys.path.insert(0,'tools/stt_p4')
 import torch
 from torch import nn
 from quartznet_graph import QuartzNet, load_checkpoint

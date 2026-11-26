@@ -2,9 +2,9 @@
 
 The trainable model keeps NeMo's parameter names and BatchNorm layers, so a
 fine-tuned state dict drops straight back into model_weights.ckpt and the
-existing experiments/stt_p4 export path (which folds BN) can consume it.
+existing tools/stt_p4 export path (which folds BN) can consume it.
 
-The feature code mirrors experiments/stt_p4/frontend/reference_frontend.py,
+The feature code mirrors tools/stt_p4/frontend/reference_frontend.py,
 which is the device contract: pre-emphasis 0.97, 512-point STFT with the
 checkpoint's 320-sample window and 160-sample hop, the checkpoint mel bank,
 log with a 2^-24 guard, and whole-utterance CMVN with unbiased variance.

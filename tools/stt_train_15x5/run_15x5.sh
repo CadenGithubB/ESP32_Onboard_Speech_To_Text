@@ -1,6 +1,6 @@
 #!/bin/bash
 # QuartzNet15x5 fine-tune with the run2 (5x5) recipe, queued behind run3.
-#  1. wait for the 5x5 day run (experiments/stt_train/run_day.sh) to finish
+#  1. wait for the 5x5 day run (tools/stt_train/run_day.sh) to finish
 #  2. baseline of the original 15x5 on the full test sets
 #  3. short memory/speed benchmark to pick the gradient-accumulation split
 #  4. train to run2's audio budget (~175 h), capped by the deadline
@@ -27,7 +27,7 @@ mkdir -p "$RUN"
 say() { echo "$(date '+%F %T') $*" | tee -a "$LOG"; }
 before() { [ "$(date +%H%M)" -lt "$1" ] || [ "$(date +%H)" -gt 12 ]; }  # HHMM, next morning
 
-# Python processes whose working directory is experiments/stt_train
+# Python processes whose working directory is tools/stt_train
 # (train.py and its DataLoader workers, evaluate.py, prepare_data.py).
 other_pids() {
   for pid in $(pgrep -f 'python' 2>/dev/null); do
@@ -44,7 +44,7 @@ other_train() {
 
 say "=== run15x5 queued (pid $$), training deadline $DEADLINE; waiting for run3 ==="
 
-# 1. Wait for run3: its log line AND no train.py from experiments/stt_train.
+# 1. Wait for run3: its log line AND no train.py from tools/stt_train.
 #    Fallback if run_day.sh disappears without the line (killed by hand):
 #    proceed after 30 min with neither run_day.sh nor stt_train python alive.
 idle=0

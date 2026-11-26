@@ -1,11 +1,11 @@
 # HW1LM1: word n-gram LM + CTC beam decoder contract
 
-Shared contract between the host tools (`experiments/stt_train/lm/`) and the
+Shared contract between the host tools (`tools/stt_train/lm/`) and the
 firmware decoder (`components/hardwareone/stt/`). Both sides implement the
 decoder below; outputs must agree on the parity fixtures.
 
 ## Text normalisation
-Same as `experiments/stt_train/common.py::normalize_text`: lowercase `a-z`,
+Same as `tools/stt_train/common.py::normalize_text`: lowercase `a-z`,
 apostrophe, single spaces. Model vocab (29 classes): index 0 = space,
 1..26 = `a`..`z`, 27 = `'`, 28 = CTC blank.
 

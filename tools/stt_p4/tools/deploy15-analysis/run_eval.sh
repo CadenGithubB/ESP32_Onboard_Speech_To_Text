@@ -2,8 +2,8 @@
 export STT_ROOT=${STT_ROOT:?set STT_ROOT to the STT data root (speech stores, work, logs)}
 REPO_ROOT=${REPO_ROOT:-$(git -C "$(dirname "$0")" rev-parse --show-toplevel)}
 # Evaluate 5x5 run2 (first: provides deployed frontend tensors) and 15x5 base.
-cd $REPO_ROOT/experiments/stt_p4
-P=${HW1_STT_PYTHON:-$REPO_ROOT/experiments/stt_p4/private/export-venv/bin/python}
+cd $REPO_ROOT/tools/stt_p4
+P=${HW1_STT_PYTHON:-$REPO_ROOT/tools/stt_p4/private/export-venv/bin/python}
 D=$STT_ROOT/work/deploy15
 export PYTHONDONTWRITEBYTECODE=1
 # evaluate_dev_int8 loads each checkpoint with one override hash at a time; use a

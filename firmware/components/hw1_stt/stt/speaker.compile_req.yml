@@ -1,5 +1,5 @@
 # Speaker labels: the Fast ResNet-34 trunk exported by esp-ppq as w8a16
-# (experiments/stt_p4/speaker/export_speaker.py). Exactly the kernels ESP-DL bound for it on the
+# (tools/stt_p4/speaker/export_speaker.py). Exactly the kernels ESP-DL bound for it on the
 # device (diagnostics build, TL kbind, 2026-10-11): 9 w8a16 (8-bit weights, 16-bit
 # activations) and one s16 depthwise (the batch norms that follow a ReLU, run as
 # grouped 1x1 convs). A different speaker model may need others: rerun with

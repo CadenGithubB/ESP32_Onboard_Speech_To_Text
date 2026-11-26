@@ -1,10 +1,11 @@
 #!/bin/bash
 # flash_variant.sh <build-dir-name>: MAC check, partition-table check, app-only flash.
-# HW1_STT_P4: the HardwareOne experiments/stt_p4 folder with private/<build-dir>/ and private/unit.env.
+# HW1_STT_P4: the stt_p4 folder whose git-ignored private/ holds <build-dir>/ and unit.env
+# (default: this repo's tools/stt_p4).
 set -u
 D=$(cd "$(dirname "$0")" && pwd)
 L=$D/private; mkdir -p "$L"                # chip ID and partition-table reads (git-ignored)
-cd "${HW1_STT_P4:?set HW1_STT_P4 to the HardwareOne experiments/stt_p4 folder}"
+cd "${HW1_STT_P4:-$D/../stt_p4}"
 B=private/$1/hardwareone-idf.bin
 [ -f "$B" ] || { echo "no $B"; exit 1; }
 PORT=$(HW1_STT_P4=$PWD "${HW1_STT_PYTHON:-python3}" "$D/find_p4_port.py" 2>/dev/null | tail -1)

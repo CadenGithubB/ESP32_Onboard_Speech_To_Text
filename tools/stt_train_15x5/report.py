@@ -112,7 +112,7 @@ def main():
               f"- sha256 {dl.get('sha256', '?')}, {dl.get('bytes', '?')} bytes (QuartzNet15x5Base-En, NGC "
               "nvidia/nemospeechmodels 1.0.0a5, same listing as the 5x5 QuartzNet5x5LS-En; trained on "
               "LibriSpeech, Common Voice, WSJ, Fisher, Switchboard, NSC).",
-              '- Code: experiments/stt_train_15x5 (copy of experiments/stt_train with run2 mix, '
+              '- Code: tools/stt_train_15x5 (copy of tools/stt_train with run2 mix, '
               'audio-hour budget, gradient accumulation).']
 
     for name, res in (('15x5 fine-tuned', f15),):

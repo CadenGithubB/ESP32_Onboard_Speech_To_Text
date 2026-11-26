@@ -30,7 +30,7 @@ INIT=$STT_ROOT/work/general/quartznet15x5/best
 LOG=$STT_ROOT/logs/continuation.log
 mkdir -p "$STT_ROOT/logs" "$OUT"
 say() { echo "$(date '+%F %T') $*" | tee -a "$LOG"; }
-cd "$KIT/experiments/stt_train_15x5"
+cd "$KIT/tools/stt_train_15x5"
 [ -d "$STT_ROOT/stores" ] || { echo "no stores under $STT_ROOT (set STT_ROOT=<mount>/stt)"; exit 1; }
 
 say "=== continuation on $(hostname) | STT_ROOT=$STT_ROOT | workers $WORKERS ==="

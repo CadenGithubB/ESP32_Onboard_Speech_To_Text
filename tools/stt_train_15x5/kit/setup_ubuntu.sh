@@ -30,5 +30,5 @@ print('PyTorch', torch.__version__, '| GPU:', torch.cuda.get_device_name(0),
 EOF
 # The LC3 codec library for the glasses-channel augmentation, built on the PC's own disk.
 export HW1_LC3_BUILD="$VENV/lc3"
-(cd "$KIT/experiments/stt_train_15x5" && "$VENV/bin/python" -c "import lc3codec; lc3codec._load(); print('liblc3 ok:', lc3codec.DYLIB)")
+(cd "$KIT/tools/stt_train_15x5" && "$VENV/bin/python" -c "import lc3codec; lc3codec._load(); print('liblc3 ok:', lc3codec.DYLIB)")
 echo "setup done: $VENV"

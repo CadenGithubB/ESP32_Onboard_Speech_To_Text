@@ -29,7 +29,7 @@ import torch
 
 HERE = Path(__file__).parent
 sys.path.insert(0, str(HERE))
-sys.path.insert(0, str(HERE.parent))   # experiments/stt_p4: export_quartznet.metadata
+sys.path.insert(0, str(HERE.parent))   # tools/stt_p4: export_quartznet.metadata
 import proto  # noqa: E402
 
 FRAMES, HOP = 300, 160

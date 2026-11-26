@@ -60,9 +60,9 @@ frames. Float scores must be finite; NaNs are rejected before state mutation.
 ## Reproduce host checks
 
 Run from the worktree root with the already isolated, pinned host ML environment
-from `experiments/speech_portable/stt-requirements.txt`. No model download occurs
+from `tools/speech_portable/stt-requirements.txt`. No model download occurs
 in these commands. The exact checkpoint and public fixture provenance are in
-`experiments/speech_portable/float_quartznet.py` and the constants manifest.
+`tools/speech_portable/float_quartznet.py` and the constants manifest.
 
 ```sh
 python3 tools/stt_p4/frontend/contract.py --check
@@ -83,7 +83,7 @@ stale while it still pointed at HardwareOne's tree. Do not regenerate it; that w
 change the frontend identity `ca91eb96…` the QuartzNet packages pin.
 
 Results and generated feature/PCM fixtures stay in ignored
-`experiments/stt_p4/private/frontend/`. The quantizer test extracts and compiles
+`tools/stt_p4/private/frontend/`. The quantizer test extracts and compiles
 the actual runtime rounding loop; it tests negative and positive half-ties,
 adjacent representable values, saturation, and both speech feature buffers.
 

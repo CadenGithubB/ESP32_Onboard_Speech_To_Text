@@ -1,6 +1,6 @@
 // Host test for SegmenterConfig::hard_cut_search_samples (quiet-point hard cut).
 //   clang++ -std=c++17 -Wall -Wextra -Werror -I<tree>/components/hardwareone \
-//     experiments/stt_p4/test_quiet_cut.cpp -o /tmp/test_quiet_cut && /tmp/test_quiet_cut
+//     tools/stt_p4/test_quiet_cut.cpp -o /tmp/test_quiet_cut && /tmp/test_quiet_cut
 // Synthetic speech: 230 ms tone bursts with 70 ms gaps (too short to end a
 // phrase), so only the 20 s limit can close a segment.
 #include "stt/stt_segmenter.h"

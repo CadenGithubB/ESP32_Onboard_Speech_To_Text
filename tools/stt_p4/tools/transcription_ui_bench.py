@@ -2,14 +2,14 @@
 import os
 import base64,contextlib,datetime,hashlib,json,pathlib,re,subprocess,sys,time,urllib.parse
 ROOT=pathlib.Path(__file__).resolve().parents[3]
-sys.path[:0]=[str(ROOT/'experiments'/x) for x in ('p4_connectivity','p4_mesh')]
+sys.path[:0]=[str(pathlib.Path(__import__('os').environ['HW1_BENCH_LIBS'])/x) for x in ('p4_connectivity','p4_mesh')]
 from connectivity_redaction import ConnectivityConsole
 from console import extract_json_objects
 from test_mesh import command_token
 from test_http_s3 import HttpS3Probe,validate_reply,private_encodings
 from esptool.reset import HardReset
 RUN=pathlib.Path(__file__).resolve().parent
-c=json.loads(pathlib.Path(__import__('os').environ.get('HW1_CREDENTIALS', 'experiments/p4_ble_roles/private/credentials.json')).read_text())
+c=json.loads(pathlib.Path(__import__('os').environ['HW1_CREDENTIALS']).read_text())
 tag=datetime.datetime.now(datetime.timezone.utc).strftime('%H%M%S');record=RUN/('transcription-ui-'+tag+'.json')
 report={'checks':{},'http':[]}
 def emit(key,value=True):

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Fine-tune QuartzNet15x5 with the run2 (QuartzNet5x5) recipe, like for like.
 
-Copy of experiments/stt_train/train.py with these deliberate differences:
+Copy of tools/stt_train/train.py with these deliberate differences:
   * TRAIN_MIX is run2's mix (AMI SDM/IHM + LibriSpeech clean-100), not run3's.
   * The run length is measured in audio hours seen (run2 saw ~175 h) instead
     of wall-clock time, because the 15x5 is ~3x slower per audio second. The

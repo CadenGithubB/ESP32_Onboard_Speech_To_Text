@@ -1,7 +1,7 @@
 import os
 import datetime,hashlib,json,pathlib,re,serial,sys,termios,time
 ROOT=pathlib.Path(__file__).resolve().parents[3]
-sys.path[:0]=[str(ROOT/'experiments'/x) for x in ('p4_connectivity','p4_mesh')]
+sys.path[:0]=[str(pathlib.Path(__import__('os').environ['HW1_BENCH_LIBS'])/x) for x in ('p4_connectivity','p4_mesh')]
 from connectivity_redaction import ConnectivityConsole
 from console import extract_json_objects
 from test_mesh import command_token
@@ -12,7 +12,7 @@ class NoControlSerial(serial.Serial):
  def open(self):
   super().open();settings=termios.tcgetattr(self.fd);settings[2]&=~termios.HUPCL;termios.tcsetattr(self.fd,termios.TCSANOW,settings)
 RUN=pathlib.Path(__file__).resolve().parent
-c=json.loads(pathlib.Path(__import__('os').environ.get('HW1_CREDENTIALS', 'experiments/p4_ble_roles/private/credentials.json')).read_text())
+c=json.loads(pathlib.Path(__import__('os').environ['HW1_CREDENTIALS']).read_text())
 tag=datetime.datetime.now(datetime.timezone.utc).strftime('%H%M%S');result={}
 with ConnectivityConsole(os.environ['HW1_P4_PORT'],RUN/('transcription-usb-'+tag+'.log'),secrets=private_encodings(c),completion='hardwareone',chunk_delay=.12,serial_factory=NoControlSerial) as b:
  time.sleep(2)

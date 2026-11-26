@@ -2,7 +2,7 @@
 import sys, os
 from pathlib import Path
 sys.dont_write_bytecode=True
-HERE=Path('experiments/stt_p4'); sys.path.insert(0,str(HERE))
+HERE=Path('tools/stt_p4'); sys.path.insert(0,str(HERE))
 import numpy as np, soundfile as sf, torch, yaml
 from quartznet_graph import QuartzNet, load_checkpoint, DEFAULT_CHECKPOINT
 from test_graph import unfolded

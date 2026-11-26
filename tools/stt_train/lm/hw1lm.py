@@ -1,7 +1,7 @@
 """HW1LM1 word n-gram LM: writer, reader/validator, backoff scoring and the
 reference CTC prefix beam decoder.
 
-Implements experiments/stt_train/lm/FORMAT.md, which is the binding contract
+Implements tools/stt_train/lm/FORMAT.md, which is the binding contract
 shared with the firmware decoder. Pure Python + numpy (no torch import) so it
 can be used from tests and fixture tools cheaply.
 
@@ -52,7 +52,7 @@ WORD_RE = re.compile(r"[a-z']+")
 
 
 def normalize_text(text):
-    """Identical to experiments/stt_train/common.py::normalize_text."""
+    """Identical to tools/stt_train/common.py::normalize_text."""
     text = text.lower().replace('-', ' ')
     text = re.sub(r"[^a-z' ]", ' ', text)
     text = re.sub(r"\s+'|'\s+", ' ', f' {text} ')

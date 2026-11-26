@@ -1,7 +1,7 @@
 """Single-thread CPU time of the folded float graphs on one 8 s clip (first 8 s of fixture 1.wav)."""
 import sys, os, time, json, statistics
 sys.dont_write_bytecode=True
-sys.path.insert(0,'experiments/stt_p4')
+sys.path.insert(0,'tools/stt_p4')
 import torch, soundfile as sf
 torch.set_num_threads(1)
 from quartznet_graph import QuartzNet, load_checkpoint, DEFAULT_CHECKPOINT

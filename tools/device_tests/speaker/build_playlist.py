@@ -51,7 +51,7 @@ DEV_STORES = sorted({s for b in BINS.values() for s in b['stores']})
 
 
 def normalize_text(text):
-    """Same as experiments/stt_train_15x5/common.py normalize_text."""
+    """Same as tools/stt_train_15x5/common.py normalize_text."""
     text = text.lower().replace('-', ' ')
     text = re.sub(r"[^a-z' ]", ' ', text)
     text = re.sub(r"\s+'|'\s+", ' ', f' {text} ')

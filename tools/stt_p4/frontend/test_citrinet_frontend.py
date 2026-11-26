@@ -27,7 +27,7 @@ import torch
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
 ENGINE = next(p for p in (ROOT / 'firmware/components/hw1_stt/stt', ROOT / 'components/hardwareone/stt') if p.is_dir())
-TRAIN = next(p for p in (ROOT / 'tools/stt_train_15x5', ROOT / 'experiments/stt_train_15x5') if p.is_dir())
+TRAIN = next(p for p in (ROOT / 'tools/stt_train_15x5',) if p.is_dir())
 sys.path.insert(0, str(TRAIN))
 sys.path.insert(0, str(HERE))
 from common import HOP, Frontend  # noqa: E402

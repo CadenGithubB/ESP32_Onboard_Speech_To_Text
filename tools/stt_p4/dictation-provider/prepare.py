@@ -4,7 +4,7 @@ from pathlib import Path
 import difflib
 
 HERE = Path(__file__).resolve().parent
-ROOT = HERE.parents[2]  # experiments/stt_p4/dictation-provider -> repository root
+ROOT = HERE.parents[2]  # tools/stt_p4/dictation-provider -> repository root
 BASE = ROOT / 'components/hardwareone'
 OUT = HERE / 'components/hardwareone'
 OUT.mkdir(parents=True, exist_ok=True)

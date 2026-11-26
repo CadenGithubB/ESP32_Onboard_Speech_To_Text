@@ -1,7 +1,7 @@
 import os
 import datetime,json,pathlib,re,serial,sys,termios,time
 ROOT=pathlib.Path(__file__).resolve().parents[3]
-sys.path[:0]=[str(ROOT/'experiments'/x) for x in ('p4_connectivity','p4_mesh')]
+sys.path[:0]=[str(pathlib.Path(__import__('os').environ['HW1_BENCH_LIBS'])/x) for x in ('p4_connectivity','p4_mesh')]
 from connectivity_redaction import ConnectivityConsole
 from console import extract_json_objects
 from test_mesh import command_token
@@ -11,9 +11,9 @@ class NoControlSerial(serial.Serial):
  def _update_rts_state(self):pass
  def open(self):
   super().open();settings=termios.tcgetattr(self.fd);settings[2]&=~termios.HUPCL;termios.tcsetattr(self.fd,termios.TCSANOW,settings)
-c=json.loads(pathlib.Path(__import__('os').environ.get('HW1_CREDENTIALS', 'experiments/p4_ble_roles/private/credentials.json')).read_text())
+c=json.loads(pathlib.Path(__import__('os').environ['HW1_CREDENTIALS']).read_text())
 tag=datetime.datetime.now(datetime.timezone.utc).strftime('%H%M%S')
-with ConnectivityConsole(os.environ['HW1_S3_PORT'],ROOT/('experiments/stt_p4/private/s3-keep-web-'+tag+'.log'),secrets=private_encodings(c),completion='hardwareone',chunk_delay=.12,serial_factory=NoControlSerial) as b:
+with ConnectivityConsole(os.environ['HW1_S3_PORT'],ROOT/('tools/stt_p4/private/s3-keep-web-'+tag+'.log'),secrets=private_encodings(c),completion='hardwareone',chunk_delay=.12,serial_factory=NoControlSerial) as b:
  time.sleep(2)
  b.command('login '+command_token(c['username'])+' '+command_token(c['password']),timeout=30)
  assert f'You are {c["username"]} (admin)' in b.command('whoami')
